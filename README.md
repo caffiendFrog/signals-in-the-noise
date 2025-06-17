@@ -38,18 +38,18 @@ _[Back to Top](#contents)_
     <img src="resources/img.png" width="600" alt="screenshot of adding python interpreter to pycharm 2025.1.2"/>
 ### 4. Install runtime dependencies
 ```bash
-    .\bin\install_dependencies.py
+    python .\bin\install_dependencies.py
 ```
 * NOTE: this has not been verified on a Mac, but should work if  
 ### 5. Install package in editable mode
 _This will allow using the source code in the jupyter notebooks._
 ```bash
-    pip install -e
+    pip install -e .
 ```
 ### 6. Download the datasets
 We will be using [GSE161529](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE161529) [6, 7]. The datasets are prohibitively large to store in GitHub. Datasets can be downloaded directly from the Gene Expression Omnibus (GEO) or by using the provided python script which will download the files to the `assets` directory and expand the `tar` file for the patient samples. Using the python script will ensure compatibility with the rest of the downstream workflow (e.g. file naming conventions and locations).
 ```bash
-  .\bin\download_datasets.py
+    python .\bin\download_datasets.py
 ```
 
 _[Back to Top](#contents)_
