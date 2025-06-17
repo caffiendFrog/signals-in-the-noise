@@ -1,0 +1,18 @@
+# Python
+__pycache__/
+
+# Virtual environment
+.venv*/
+venv/
+
+**/*.egg-info
+
+# Jupyter
+**/.ipynb_checkpoints/
+
+# PyCharm
+.idea/
+
+# Windows
+Thumbs.db
+.DS_Store
