@@ -8,7 +8,7 @@ import pandas as pd
 from scipy.sparse import csc_matrix
 
 
-class TenXHDF5:
+class TISCH2CustomH5:
     def __init__(self, filename):
         if not os.path.exists(filename):
             raise FileNotFoundError(f"Required file not found: {filename}")

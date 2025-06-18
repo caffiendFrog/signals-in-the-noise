@@ -5,10 +5,10 @@ import os
 sys.path.append(os.path.abspath(os.path.join(os.getcwd(), "..", "src")))
 
 from signals_in_the_noise.utilities.doublet_scoring import GhostCells
-from signals_in_the_noise.utilities.tenx_hdf5 import TenXHDF5
+from signals_in_the_noise.utilities.tisch2_custom_h5 import TISCH2CustomH5
 
 if __name__ == "__main__":
-    original_data = TenXHDF5("../../assets/archive/BRCA_GSE161529_expression.h5")
+    original_data = TISCH2CustomH5("../../assets/archive/BRCA_GSE161529_expression.h5")
     original_data.convert_data()
 
     ghost_cells = GhostCells(adata=original_data.adata)
