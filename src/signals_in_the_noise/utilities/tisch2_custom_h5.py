@@ -49,7 +49,7 @@ class TISCH2CustomH5:
         `[()]` is h5py notation to load dataset into memory (https://docs.h5py.org/en/stable/high/dataset.html)
         :return:
         """
-        with h5py.File('../assets/BRCA_GSE161529_expression.h5', 'r') as f:
+        with h5py.File('../data/BRCA_GSE161529_expression.h5', 'r') as f:
             matrix = f['matrix']
 
             # Decode barcodes

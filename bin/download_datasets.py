@@ -10,7 +10,7 @@ from urllib import request
 
 
 project_root = Path(__file__).resolve().parent.parent
-assets_directory = project_root / "assets"
+assets_directory = project_root / "data"
 raw_data_file_path =  os.path.join(assets_directory, "GSE161529_RAW.tar")
 features_file_path = os.path.join(assets_directory, "GSE161529_features.tsv.gz")
 

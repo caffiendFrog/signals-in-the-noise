@@ -45,7 +45,7 @@ class TenX:
                 self.multiple_adata = []
 
                 # Regex to match study_identifier from the features file
-                pattern = re.compile(r"^\.\./assets/(?P<study_id>.+?)_features\.tsv\.gz$")
+                pattern = re.compile(r"^\.\./data/(?P<study_id>.+?)_features\.tsv\.gz$")
                 match = pattern.match(self.features_filename)
                 self.study_id = match.group("study_id")
 
