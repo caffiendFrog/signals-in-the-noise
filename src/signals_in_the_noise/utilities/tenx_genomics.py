@@ -79,10 +79,13 @@ class TenX:
             os.makedirs(sample_dir, exist_ok=True)
             for filename in filenames:
                 source_path = f"{self.directory}/{filename}"
-                target_path = f"{sample_dir}/{filename}"
+                if 'barcodes' in filename:
+                    target_path = f"{sample_dir}/barcodes.tsv.gz"
+                elif 'matrix' in filename:
+                    target_path = f"{sample_dir}/matrix.mtx.gz"
                 shutil.copy2(source_path, target_path)
 
             # Everyone gets the same features file
             source_path = f"{self.study_directory}_features.tsv.gz"
-            target_path = f"{sample_dir}/{self.study_id}_features.tsv.gz"
+            target_path = f"{sample_dir}/features.tsv.gz"
             shutil.copy2(source_path, target_path)
