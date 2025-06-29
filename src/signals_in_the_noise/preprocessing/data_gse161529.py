@@ -12,9 +12,10 @@ class GSE161529:
     - Supplementary excel files exist in the resources directory
     """
 
-    RAW_DATA_DIRECTORY = "GSE161529_RAW"
-    FEATURES_FILENAME = "GSE161529_features.tsv.gz"
-    RESOURCES_DIRECTORY = "resources/GSE161529"
+    STUDY_ID = "GSE161529"
+    RAW_DATA_DIRECTORY = f"{STUDY_ID}_RAW"
+    FEATURES_FILENAME = f"{STUDY_ID}_features.tsv.gz"
+    RESOURCES_DIRECTORY = f"resources/{STUDY_ID}"
 
     def __init__(self):
         self.resources_directory = get_data_path(self.RESOURCES_DIRECTORY)
