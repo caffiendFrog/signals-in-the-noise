@@ -109,11 +109,14 @@ class TenX:
         :param cache_directory: If not none, writes the loaded anndata object out as h5ad for later use
         :return:
         """
-        # Copy the files
         missing_targets = defaultdict(list)
         for sample_identifier, filenames in samples_to_files.items():
             sample_dir = f"{self.study_directory}/{sample_identifier}"
             os.makedirs(sample_dir, exist_ok=True)
+            cache_filename = f"{cache_directory}/{sample_identifier}.h5ad"
+            if Path(cache_filename).exists():
+                L.info(f"Skipping {sample_identifier} because it already exists as an `.h5ad` file.")
+                continue
             for filename in filenames:
                 target_path = None
                 source_path = f"{self.directory}/{filename}"
