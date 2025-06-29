@@ -1,4 +1,3 @@
-import logging
 import os
 import re
 import shutil
@@ -7,14 +6,12 @@ from enum import StrEnum
 from pathlib import Path
 import scanpy as sc
 
+from signals_in_the_noise.utilities.logging import get_logger
 from signals_in_the_noise.utilities.storage import get_data_path
 
-L = logging.getLogger(__name__)
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-    handlers=[logging.StreamHandler(),]
-)
+
+L = get_logger(__name__)
+
 
 class DirectoryType(StrEnum):
     # SINGLE = "single"
