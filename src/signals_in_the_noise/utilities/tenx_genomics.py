@@ -81,6 +81,15 @@ class TenX:
         if cache:
             cache_directory = get_data_path(f"{self.study_id}_adata_cache")
             cache_directory.mkdir(parents=True, exist_ok=True)
+
+        samples_to_files = self._samples_to_file_dictionary()
+        self._reconstitute_ten_x_file_structure(samples_to_files, cache_directory)
+
+    def _samples_to_file_dictionary(self):
+        """
+        Iterate over the files in the directory
+        :return: dictionary of sample identifiers to their corresponding barcode & matrix files
+        """
         # Regex to match sample_identifier from filenames
         pattern = re.compile(r"^(?P<sample_id>.+?)-(barcodes\.tsv|matrix\.mtx)\.gz$")
 
@@ -92,6 +101,17 @@ class TenX:
                 continue
             samples_to_files[match.group("sample_id")].append(filename)
 
+        return samples_to_files
+
+    def _reconstitute_ten_x_file_structure(self, samples_to_files, cache_directory):
+        """
+        Iterates over all the raw data files in the directory and creates directories for each sample
+        that contain the expected file structure of a 10x genomics output.
+
+        :param samples_to_files:
+        :param cache_directory: If not none, writes the loaded anndata object out as h5ad for later use
+        :return:
+        """
         # Copy the files
         missing_targets = defaultdict(list)
         for sample_identifier, filenames in samples_to_files.items():
@@ -118,7 +138,7 @@ class TenX:
                 L.info(f"Reading {sample_identifier} as AnnData object.")
                 adata = sc.read_10x_mtx(path=sample_dir)
                 self.multiple_adata.append(adata)
-                if cache:
+                if cache_directory:
                     L.info(f"...caching object.")
                     adata.write_h5ad(f"{cache_directory}/{sample_identifier}.h5ad")
             else:
