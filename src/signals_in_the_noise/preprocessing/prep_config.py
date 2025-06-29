@@ -3,6 +3,7 @@ from dataclasses import dataclass, asdict
 from pathlib import Path
 
 from signals_in_the_noise.utilities.logging import get_logger
+from signals_in_the_noise.utilities.storage import get_data_path
 
 L = get_logger(__name__)
 
@@ -14,6 +15,8 @@ class PrepConfig:
     """
     data_loaded: bool
     data_loaded_cached: bool
+    annotations_loaded: bool
+    annotations_loaded_cached: bool
     annotations_added: bool
     annotations_added_cached: bool
 
@@ -36,14 +39,15 @@ class Prep:
     """
     config: PrepConfig
 
-    def __init__(self, config_filename: str):
-        self.config_path = Path(config_filename)
+    def __init__(self, study_id: str):
+        self.STUDY_ID = study_id
+        self.config_path = Path(get_data_path(f"{study_id}.json"))
         self.config_path.parent.mkdir(parents=True, exist_ok=True)
 
         if self.config_path.exists():
             self.config = PrepConfig.from_json(self.config_path)
         else:
-            self.config = PrepConfig(False, False, False, False)
+            self.config = PrepConfig(False, False, False, False, False, False)
 
     @property
     def is_data_loaded(self) -> bool:
@@ -59,12 +63,30 @@ class Prep:
         return self.config.data_loaded_cached
 
     @property
+    def is_annotations_loaded(self) -> bool:
+        return self.config.annotations_loaded
+
+    @property
+    def is_annotations_loaded_cached(self) -> bool:
+        return self.config.annotations_loaded_cached
+
+    def annotations_loaded(self) -> None:
+        self.config.annotations_loaded = True
+        self.config.annotations_loaded_cached = True
+        self._save_config()
+
+    @property
     def is_annotations_added(self) -> bool:
         return self.config.annotations_added
 
     @property
     def is_annotations_added_cached(self) -> bool:
         return self.config.annotations_added_cached
+
+    def annotations_added(self) -> None:
+        self.config.annotations_added = True
+        self.config.annotations_added_cached = True
+        self._save_config()
 
     def _save_config(self):
         self.config.to_json(self.config_path)
