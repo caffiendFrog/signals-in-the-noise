@@ -3,6 +3,7 @@ import re
 import shutil
 from collections import defaultdict
 from enum import StrEnum
+from pathlib import Path
 
 
 class DirectoryType(StrEnum):
@@ -32,8 +33,9 @@ class TenX:
         :param directory_type: type of directory.
         :param features_filename: filename of genomics features file, required if directory type is MULTIPLE.
         """
-        self.directory = directory
+        self.directory = Path(directory)
         self.directory_type = directory_type
+
 
         match self.directory_type:
             case DirectoryType.MULTIPLE:
@@ -41,18 +43,17 @@ class TenX:
                     raise ValueError("features_filename required for directory type MULTIPLE")
                 if not os.path.exists(features_filename):
                     raise FileNotFoundError(f"Required file not found: {features_filename}")
-                self.features_filename = features_filename
+                self.features_path = Path(features_filename)
+
+                if not self.features_path.name.endswith("_features.tsv.gz"):
+                    raise ValueError("features_filename is not in the expected format, '_features.tsv.gz'")
+
+                self.study_id = self.features_path.stem.replace("_features", "")
                 self.multiple_adata = []
 
-                # Regex to match study_identifier from the features file
-                pattern = re.compile(r"^\.\./data/(?P<study_id>.+?)_features\.tsv\.gz$")
-                match = pattern.match(self.features_filename)
-                self.study_id = match.group("study_id")
-
                 # Create target directory for re-organized files
-                parent_dir = os.path.dirname(self.directory)
-                self.study_directory = f"{parent_dir}/{self.study_id}"
-                os.makedirs(self.study_directory, exist_ok=True)
+                self.study_directory = self.directory / self.study_id
+                self.study_directory.mkdir(parents=True, exist_ok=True)
             case _:
                 raise ValueError(f"Invalid directory_type {directory_type}")
 
@@ -86,6 +87,5 @@ class TenX:
                 shutil.copy2(source_path, target_path)
 
             # Everyone gets the same features file
-            source_path = f"{self.study_directory}_features.tsv.gz"
             target_path = f"{sample_dir}/features.tsv.gz"
-            shutil.copy2(source_path, target_path)
+            shutil.copy2(self.features_path, target_path)
