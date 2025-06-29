@@ -29,14 +29,19 @@ class GSE161529(Prep):
 
     def __init__(self):
         super().__init__(self.STUDY_ID)
-        if not self.is_data_loaded:
-            raw_data_directory = get_data_path(self.RAW_DATA_DIRECTORY)
-            features_filename = get_data_path(self.FEATURES_FILENAME)
-            self.raw_data = TenX(str(raw_data_directory), DirectoryType.MULTIPLE, features_filename=str(features_filename))
-            self.raw_data.load_data()
-            self.data_loaded()
+        raw_data_directory = get_data_path(self.RAW_DATA_DIRECTORY)
+        features_filename = get_data_path(self.FEATURES_FILENAME)
+        raw_data = TenX(str(raw_data_directory), DirectoryType.MULTIPLE, features_filename=str(features_filename))
 
-        self.add_annotations()
+        if not self.is_data_loaded:
+            raw_data.load_data()
+            self.data_loaded()
+        else:
+            raw_data.load_adata()
+
+        self.objects = raw_data.multiple_adata
+        #
+        # self.add_annotations()
 
     def add_annotations(self):
         """
@@ -78,8 +83,8 @@ class GSE161529(Prep):
                 'parity': "parity_x",
             }
             for index in range(len(resource_df)):
-                filename = resource_df.loc[index, 'adata-filename']
-                adata = sc.read_h5ad(get_data_path(f"{self.STUDY_ID}_adata_cache/{filename}"))
+                filename = get_data_path(f"{self.STUDY_ID}_adata_cache/{resource_df.loc[index, 'adata-filename']}")
+                adata = sc.read_h5ad(filename)
                 for uns_name, column_name in annotation_column_names.items():
                     adata.uns[uns_name] = resource_df.loc[index, column_name]
                 self.raw_data.multiple_adata.append(adata)
@@ -103,12 +108,13 @@ class GSE161529(Prep):
             resource_df = pd.read_excel(resource_path, header=header)
             # lowercase the column names for consistency
             resource_df.columns = resource_df.columns.str.lower()
-            resource_df.columns = [slugify(column) for column in resource_df.columns]
             resource_dfs.append(resource_df)
 
         # Join all the dataframes on the sample name
         join_column = "sample-name"
         resource_df = reduce(lambda left, right: pd.merge(left, right, on=join_column), resource_dfs)
+        # slugify the column names for easier use downstream
+        resource_df.columns = [slugify(column) for column in resource_df.columns]
 
         # Add column that is the expected `.h5ad` file name
         resource_df['sample-suffix'] = resource_df['barcodes-file'].str.replace('-barcodes.tsv.gz','')

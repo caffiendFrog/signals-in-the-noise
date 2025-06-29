@@ -63,9 +63,19 @@ class TenX:
             case _:
                 raise ValueError(f"Invalid directory_type {directory_type}")
 
+    @property
+    def cache_directory_name(self):
+        return get_data_path(f"{self.study_id}_adata_cache")
+
+    def load_adata(self):
+        cache_directory = Path(self.cache_directory_name)
+        for file in cache_directory.iterdir():
+            L.info(f"Reading {file} as AnnData object.")
+            adata = sc.read_h5ad(file)
+            self.multiple_adata.append(adata)
+
     def load_data(self, *, cache=True):
         """
-
         :param cache: True will save the adata to disk after loading
         :return:
         """
@@ -76,7 +86,7 @@ class TenX:
     def load_multiple_adata(self, *, cache: bool):
         cache_directory = None
         if cache:
-            cache_directory = get_data_path(f"{self.study_id}_adata_cache")
+            cache_directory = self.cache_directory_name
             cache_directory.mkdir(parents=True, exist_ok=True)
 
         samples_to_files = self._samples_to_file_dictionary()
