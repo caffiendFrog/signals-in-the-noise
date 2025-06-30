@@ -1,5 +1,6 @@
 from collections import defaultdict
 from functools import reduce
+from pathlib import Path
 
 import pandas as pd
 import scanpy as sc
@@ -33,7 +34,7 @@ class GSE161529(Prep):
         raw_data_directory = get_data_path(self.RAW_DATA_DIRECTORY)
         features_filename = get_data_path(self.FEATURES_FILENAME)
         raw_data = TenX(str(raw_data_directory), DirectoryType.MULTIPLE, features_filename=str(features_filename))
-
+        self.cache_directory_path = Path(raw_data.cache_directory_name)
         if not self.is_data_loaded:
             raw_data.load_data()
             self.data_loaded()
@@ -85,7 +86,7 @@ class GSE161529(Prep):
             for uns_name, column_name in annotation_column_names.items():
                 adata.uns[uns_name] = resource_df.loc[index, column_name]
             # update the h5ad file with annotations
-            adata.write_h5ad(filename)
+            adata.write_h5ad(self.cache_directory_path / filename)
         self.annotations_loaded()
 
     def _prepare_resources_for_annotation(self, resources):
