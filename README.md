@@ -1,7 +1,5 @@
-<h1>
-  <img src="images/project_logo_transparent.png" alt="Signals in the noise project logo" width="100" style="vertical-align: middle; margin-right: 0.5rem;">
-  Signals in the Noise
-</h1>
+<img src="images/project_logo_transparent.png" alt="Signals in the noise project logo" width="100" style="vertical-align: middle; margin-right: 0.5rem;">
+<span style="font-size: 2.5rem; font-weight: bolder">Signals in the Noise</span>
 
 ## Contents
 * [Overview](#overview)
