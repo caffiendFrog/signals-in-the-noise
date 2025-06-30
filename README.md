@@ -75,12 +75,14 @@ _[Back to Top](#contents)_
   * Contains various scripts
 * `data`
   * Data in various stages of preprocessing
+  * Recommended to mark this directory as excluded from indexing in IDE.
 * `images`
   * Images used in documentation 
 * `notebook`
   * Jupyter notebooks (the analysis)
 * `resources`
   * Additonal resources for the data
+  * Recommended to mark this directory as excluded from indexing in IDE.
 * `src`
   * Source directory
 
