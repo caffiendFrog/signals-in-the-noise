@@ -1,15 +1,25 @@
-<h1>
-  <img src="images/project_logo_transparent.png" alt="Signals in the noise project logo" width="100" style="vertical-align: middle; margin-right: 0.5rem;">
-  Signals in the Noise
-</h1>
+<div style="display: inline-block; width: 35%; vertical-align: top;">
+    <img src="images/project_logo_transparent.png" alt="Signals in the noise project logo" width="250" style="vertical-align: middle; horiz-align: right; margin-top: 3rem;">
+</div>
 
-## Contents
-* [Overview](#overview)
-  * [Motivation](#motivation) 
-* [Getting Started](#getting-started)
-  * [Repository Structure](#repository-structure) 
-  * [Running Jupyter Notebooks](#running-jupyter-notebooks)
-* [References](#references)
+<div style="display: inline-block; width: 55%; vertical-align: top;">
+  <h1>Signals in the Noise</h1>
+  <h2>Contents</h2>
+  <ul>
+      <li><a href="#overview">Overview</a>
+        <ul>
+          <li><a href="#motivation">Motivation</a></li>
+        </ul>
+      </li>
+      <li><a href="#getting-started">Getting Started</a>
+        <ul>
+          <li><a href="#repository-structure">Repository Structure</a></li>
+          <li><a href="#running-jupyter-notebooks">Running Jupyter Notebooks</a></li>
+        </ul>
+      </li>
+      <li><a href="#references">References</a></li>
+    </ul>
+</div>
 
 ## Overview
 Understanding the biological significance of low RNA profile cells in tumors has lagged behind advances in single-cell RNA sequencing (scRNA-seq). While technologies have enabled detailed characterization of tumor ecosystems [1,2], cells exhibiting low overall RNA counts have often been treated as technical artifacts and excluded from analyses [3]. This approach risks overlooking rare or quiescent cell states that may hold critical biological importance, particularly in understanding cancer dormancy and resistance [4, 5]
