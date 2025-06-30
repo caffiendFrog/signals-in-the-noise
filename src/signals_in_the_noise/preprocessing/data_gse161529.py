@@ -1,3 +1,4 @@
+from collections import defaultdict
 from functools import reduce
 
 import pandas as pd
@@ -39,58 +40,53 @@ class GSE161529(Prep):
         else:
             raw_data.load_adata()
 
-        self.objects = raw_data.multiple_adata
-        #
-        # self.add_annotations()
+        self.objects = defaultdict()
+        for index, adata in enumerate(raw_data.multiple_adata):
+            self.objects[adata.uns['adata-filename']] = adata
+
+        if not self.is_annotations_loaded:
+            self.add_annotations()
 
     def add_annotations(self):
         """
         Adds annotations from resource tables to the anndata objects for the raw data.
         :return:
         """
-        resource_df = None
         resource_df_filename = get_data_path(f"{self.STUDY_ID}_annotations_df.csv")
-        if not self.is_annotations_loaded:
-            annotation_resources = {
-                'metadata': (f"{self.STUDY_ID}/table_supplementary_1.xlsx", 0),
-                'phenotype': (f"{self.STUDY_ID}/table_ev_4.xlsx", 2),
-                'qc': (f"{self.STUDY_ID}/table_supplementary_2.xlsx", 0),
-            }
-            resource_df = self._prepare_resources_for_annotation(annotation_resources)
-            resource_df.to_csv(resource_df_filename, index=False)
-            self.annotations_loaded()
-        else:
-            resource_df = pd.read_csv(resource_df_filename, header=0)
 
-        if not self.is_annotations_added:
-            self.raw_data.multiple_adata = []
-            annotation_column_names = {
-                'title': "title",
-                'menopause_status': slugify("menopause status"),
-                'cancer_type': slugify("cancer type"),
-                'cell_population': slugify("cell population"),
-                'num_cells_before': slugify("number of cells"),
-                'num_cells_after': slugify("number of cells after filtering"),
-                'num_genes_before': slugify("number of genes detected"),
-                'num_genes_after': slugify("# genes detected after filtering"),
-                'qc_mito_upper': slugify("mito - upper"),
-                'qc_genes_lower': slugify("# genes - lower"),
-                'qc_genes_upper': slugify("# genes - upper"),
-                'qc_size_upper': slugify("library size - upper"),
-                # some columns are duplicated in the resource files
-                # when they were joined, pandas appended suffices to distinguish, e.g. _x, _y
-                'gender': "gender_x",
-                'parity': "parity_x",
-            }
-            for index in range(len(resource_df)):
-                filename = get_data_path(f"{self.STUDY_ID}_adata_cache/{resource_df.loc[index, 'adata-filename']}")
-                adata = sc.read_h5ad(filename)
-                for uns_name, column_name in annotation_column_names.items():
-                    adata.uns[uns_name] = resource_df.loc[index, column_name]
-                self.raw_data.multiple_adata.append(adata)
-                adata.write_h5ad(filename)
-
-            self.annotations_loaded()
+        annotation_resources = {
+            'metadata': (f"{self.STUDY_ID}/table_supplementary_1.xlsx", 0),
+            'phenotype': (f"{self.STUDY_ID}/table_ev_4.xlsx", 2),
+            'qc': (f"{self.STUDY_ID}/table_supplementary_2.xlsx", 0),
+        }
+        resource_df = self._prepare_resources_for_annotation(annotation_resources)
+        resource_df.to_csv(resource_df_filename, index=False)
+        annotation_column_names = {
+            'title': "title",
+            'menopause_status': slugify("menopause status"),
+            'cancer_type': slugify("cancer type"),
+            'cell_population': slugify("cell population"),
+            'num_cells_before': slugify("number of cells"),
+            'num_cells_after': slugify("number of cells after filtering"),
+            'num_genes_before': slugify("number of genes detected"),
+            'num_genes_after': slugify("# genes detected after filtering"),
+            'qc_mito_upper': slugify("mito - upper"),
+            'qc_genes_lower': slugify("# genes - lower"),
+            'qc_genes_upper': slugify("# genes - upper"),
+            'qc_size_upper': slugify("library size - upper"),
+            # some columns are duplicated in the resource files
+            # when they were joined, pandas appended suffices to distinguish, e.g. _x, _y
+            'gender': slugify("gender_x"),
+            'parity': slugify("parity_x"),
+        }
+        for index in range(len(resource_df)):
+            filename = resource_df.loc[index, 'adata-filename']
+            adata = self.objects[filename]
+            for uns_name, column_name in annotation_column_names.items():
+                adata.uns[uns_name] = resource_df.loc[index, column_name]
+            # update the h5ad file with annotations
+            adata.write_h5ad(filename)
+        self.annotations_loaded()
 
     def _prepare_resources_for_annotation(self, resources):
         """
@@ -111,8 +107,9 @@ class GSE161529(Prep):
             resource_dfs.append(resource_df)
 
         # Join all the dataframes on the sample name
-        join_column = "sample-name"
+        join_column = "sample name"
         resource_df = reduce(lambda left, right: pd.merge(left, right, on=join_column), resource_dfs)
+
         # slugify the column names for easier use downstream
         resource_df.columns = [slugify(column) for column in resource_df.columns]
 
