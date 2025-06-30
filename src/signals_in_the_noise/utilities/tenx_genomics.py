@@ -144,12 +144,16 @@ class TenX:
             shutil.copy2(self.features_path, target_path)
 
             # Read the 10x file as AnnData
+            cache_directory_path = Path(cache_directory)
             if sample_identifier not in missing_targets:
                 L.info(f"Reading {sample_identifier} as AnnData object.")
+                adata_filename = f"{sample_identifier}.h5ad"
+                adata_path = cache_directory_path / adata_filename
                 adata = sc.read_10x_mtx(path=sample_dir)
+                adata.uns['adata-filename'] = adata_filename
                 self.multiple_adata.append(adata)
                 if cache_directory:
                     L.info(f"...caching object.")
-                    adata.write_h5ad(f"{cache_directory}/{sample_identifier}.h5ad")
+                    adata.write_h5ad(adata_path)
             else:
                 L.warning(f"Skipping {sample_identifier}, unable to determine target paths for {missing_targets[sample_identifier]}")
