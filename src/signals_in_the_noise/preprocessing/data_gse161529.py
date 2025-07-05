@@ -29,6 +29,12 @@ class GSE161529(Prep):
     RAW_DATA_DIRECTORY = f"{STUDY_ID}_RAW"
     FEATURES_FILENAME = f"{STUDY_ID}_features.tsv.gz"
 
+    EXPECTED_MISMATCHES = [
+        'GSM4909296_ER-MH0001.h5ad',
+        'GSM4909313_ER-MH0064-T.h5ad',
+        'GSM4909319_mER-PM0178.h5ad',
+    ]
+
     def __init__(self):
         super().__init__(self.STUDY_ID)
         raw_data_directory = get_data_path(self.RAW_DATA_DIRECTORY)
@@ -46,9 +52,12 @@ class GSE161529(Prep):
             self.objects[adata.uns['adata-filename']] = adata
 
         if not self.is_annotations_loaded:
-            self.add_annotations()
+            self.load_annotations()
 
-    def add_annotations(self):
+        if not self.is_annotations_applied:
+            self.apply_annotations()
+
+    def load_annotations(self):
         """
         Adds annotations from resource tables to the anndata objects for the raw data.
         :return:
@@ -89,7 +98,78 @@ class GSE161529(Prep):
             adata.write_h5ad(self.cache_directory_path / filename)
         self.annotations_loaded()
 
-    def _prepare_resources_for_annotation(self, resources):
+    def apply_annotations(self):
+        """
+        Iterates over the objects (adatas) and uses the annotations to engineer 5 new binary features:
+
+        1. `is_low_num_genes`
+            * 1 if the number of genes detected is lower than or equal to a threshold (`qc_genes_lower`)
+            * 0 otherwise
+        2. `is_high_num_genes`
+            * 1 if the number of genes detected is higher than to a threshold (`qc_genes_upper`)
+            * 0 otherwise
+        3. `is_high_mito`
+            * 1 if the percentage (0 to 1) is higher than a threshold (`qc_mito_upper`)
+            * 0 otherwise
+        4. `is_high_total_count`
+            * 1 if the library size is higher than or equal to a threshold (`qc_total_upper`)
+            * 0 otherwise
+        5. `is_noise`
+            * 1 if any of the above are 1
+            * 0 otherwise
+
+        :return:
+        """
+        failed = {}
+        success = []
+        for index, adata in enumerate(self.objects.values()):
+            filename = adata.uns['adata-filename']
+            try:
+                L.info(f"Applying annotations for {filename}")
+                self._apply_one(adata)
+                success.append(adata)
+            except ValueError as value_error:
+                L.warning(f"Value error for {filename}: {value_error}")
+                failed[index] = value_error
+
+        if len(failed) == 0:
+            for adata in success:
+                adata.write_h5ad(filename)
+            self.annotations_applied()
+        else:
+            L.error(f"Failed to apply annotations at indices {failed}, objects not updated on disk.")
+
+    @staticmethod
+    def _apply_one(adata):
+        # Annotate mitochondrial genes before getting QC metrics
+        adata.var['mt'] = adata.var_names.str.upper().str.startswith('MT-')
+
+        # Use scanpy to calculate the QC metrics
+        sc.pp.calculate_qc_metrics(adata, qc_vars=['mt'], inplace=True)
+
+        # Identify observations that meet the threshold
+        adata.obs['is_low_num_genes'] = (adata.obs['n_genes_by_counts'] <= adata.uns['qc_genes_lower']).astype(int)
+        adata.obs['is_high_num_genes'] = (adata.obs['n_genes_by_counts'] > adata.uns['qc_genes_upper']).astype(int)
+        adata.obs['is_high_mito'] = (adata.obs['pct_counts_mt'] / 100 > adata.uns['qc_mito_upper']).astype(int)
+        adata.obs['is_high_total_count'] = (adata.obs['total_counts'] >= adata.uns['qc_total_upper']).astype(int)
+
+        # Identify observation as noise
+        adata.obs['is_noise'] = (
+                adata.obs['is_low_num_genes'] |
+                adata.obs['is_high_num_genes'] |
+                adata.obs['is_high_mito'] |
+                adata.obs['is_high_total_count']
+        ).astype(int)
+
+        # The number of observations that are not noise should match with the published "after" count
+        actual_count = adata[adata.obs['is_noise'] == 0, :].shape[0]
+        expected_count = adata.uns['num_cells_after']
+        if not bool(actual_count == expected_count) and not (adata.uns['adata-filename'] in GSE161529.EXPECTED_MISMATCHES):
+            raise ValueError(f"Check failed! Expected {expected_count} but got {actual_count}.")
+
+
+    @staticmethod
+    def _prepare_resources_for_annotation(resources):
         """
         Loads the resources and prepares them for use to annotate the anndata objects
 

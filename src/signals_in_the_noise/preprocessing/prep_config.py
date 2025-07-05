@@ -12,13 +12,15 @@ L = get_logger(__name__)
 class PrepConfig:
     """
     Configuration used to track steps performed during preprocessing
+
+    Might not need "cached" options, but including for now just in case.
     """
     data_loaded: bool
     data_loaded_cached: bool
     annotations_loaded: bool
     annotations_loaded_cached: bool
-    annotations_added: bool
-    annotations_added_cached: bool
+    annotations_applied: bool
+    annotations_applied_cached: bool
 
     def to_json(self, path: Path, indent: int = 2) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -76,16 +78,16 @@ class Prep:
         self._save_config()
 
     @property
-    def is_annotations_added(self) -> bool:
-        return self.config.annotations_added
+    def is_annotations_applied(self) -> bool:
+        return self.config.annotations_applied
 
     @property
-    def is_annotations_added_cached(self) -> bool:
-        return self.config.annotations_added_cached
+    def is_annotations_applied_cached(self) -> bool:
+        return self.config.annotations_applied_cached
 
-    def annotations_added(self) -> None:
-        self.config.annotations_added = True
-        self.config.annotations_added_cached = True
+    def annotations_applied(self) -> None:
+        self.config.annotations_applied = True
+        self.config.annotations_applied_cached = True
         self._save_config()
 
     def _save_config(self):
