@@ -74,7 +74,7 @@ class GSE161529(Prep):
             'qc_mito_upper': slugify("mito - upper"),
             'qc_genes_lower': slugify("# genes - lower"),
             'qc_genes_upper': slugify("# genes - upper"),
-            'qc_size_upper': slugify("library size - upper"),
+            'qc_total_upper': slugify("library size - upper"),
             # some columns are duplicated in the resource files
             # when they were joined, pandas appended suffices to distinguish, e.g. _x, _y
             'gender': slugify("gender_x"),
