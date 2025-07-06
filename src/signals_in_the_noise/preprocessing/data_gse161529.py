@@ -153,6 +153,11 @@ class GSE161529(Prep):
         adata.obs['is_high_mito'] = (adata.obs['pct_counts_mt'] / 100 > adata.uns['qc_mito_upper']).astype(int)
         adata.obs['is_high_total_count'] = (adata.obs['total_counts'] >= adata.uns['qc_total_upper']).astype(int)
 
+        # Additional features while we're here
+        adata.obs['zero_genes'] = (adata.obs['n_genes_by_counts'] == 0).count()
+        adata.obs['zero_mito'] = (adata.obs['pct_counts_mt'] == 0).count()
+        adata.obs['zero_count'] = (adata.obs['total_counts'] == 0).count()
+
         # Identify observation as noise
         adata.obs['is_noise'] = (
                 adata.obs['is_low_num_genes'] |
