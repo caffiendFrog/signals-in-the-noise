@@ -61,6 +61,14 @@ class GSE161529(Prep):
     def cache_adata_object(self, adata: AnnData, filename: str):
         adata.write(self.cache_directory_path / filename)
 
+    def get_dataset(self, filename):
+        """
+        Returns a copy of the dataset
+        :param filename:
+        :return: anndata.AnnData
+        """
+        return self.objects[filename].copy()
+
     def load_annotations(self):
         """
         Adds annotations from resource tables to the anndata objects for the raw data.
