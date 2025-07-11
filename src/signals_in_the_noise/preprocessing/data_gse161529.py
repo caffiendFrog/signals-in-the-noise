@@ -4,6 +4,7 @@ from pathlib import Path
 
 import pandas as pd
 import scanpy as sc
+from anndata import AnnData
 from slugify import slugify
 
 from signals_in_the_noise.preprocessing.prep_config import Prep
@@ -57,6 +58,9 @@ class GSE161529(Prep):
         if not self.is_annotations_applied:
             self.apply_annotations()
 
+    def cache_adata_object(self, adata: AnnData, filename: str):
+        adata.write(self.cache_directory_path / filename)
+
     def load_annotations(self):
         """
         Adds annotations from resource tables to the anndata objects for the raw data.
@@ -90,12 +94,12 @@ class GSE161529(Prep):
             'parity': slugify("parity_x"),
         }
         for index in range(len(resource_df)):
-            filename = resource_df.loc[index, 'adata-filename']
+            filename = str(resource_df.loc[index, 'adata-filename'])
             adata = self.objects[filename]
             for uns_name, column_name in annotation_column_names.items():
                 adata.uns[uns_name] = resource_df.loc[index, column_name]
             # update the h5ad file with annotations
-            adata.write_h5ad(self.cache_directory_path / filename)
+            self.cache_adata_object(adata, filename)
         self.annotations_loaded()
 
     def apply_annotations(self):
@@ -121,20 +125,20 @@ class GSE161529(Prep):
         :return:
         """
         failed = {}
-        success = []
+        success = {}
         for index, adata in enumerate(self.objects.values()):
             filename = adata.uns['adata-filename']
             try:
                 L.info(f"Applying annotations for {filename}")
                 self._apply_one(adata)
-                success.append(adata)
+                success[filename] = adata
             except ValueError as value_error:
                 L.warning(f"Value error for {filename}: {value_error}")
                 failed[index] = value_error
 
         if len(failed) == 0:
-            for adata in success:
-                adata.write_h5ad(filename)
+            for filename, adata in success.items():
+                self.cache_adata_object(adata, filename)
             self.annotations_applied()
         else:
             L.error(f"Failed to apply annotations at indices {failed}, objects not updated on disk.")
