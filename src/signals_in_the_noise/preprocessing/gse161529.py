@@ -36,6 +36,20 @@ class GSE161529(Preprocessor):
         'GSM4909319_mER-PM0178.h5ad',
     ]
 
+    EPI_CELL_TYPING_FILENAMES = [
+        "GSM4909255_N-N280-Epi.h5ad",
+        "GSM4909256_N-PM0095-Epi.h5ad",
+        "GSM4909258_N-NF-Epi.h5ad",
+        "GSM4909259_N-NE-Epi.h5ad",
+        "GSM4909260_N-N1105-Epi.h5ad",
+        "GSM4909262_N-MH0064-Epi.h5ad",
+        "GSM4909264_N-N1B-Epi.h5ad",
+        "GSM4909267_N-MH0023-Epi.h5ad",
+        "GSM4909269_N-PM0342-Epi.h5ad",
+        "GSM4909273_N-MH275-Epi.h5ad",
+        "GSM4909275_N-PM0372-Epi.h5ad",
+    ]
+
     def __init__(self):
         super().__init__(self.STUDY_ID)
         raw_data_directory = get_data_path(self.RAW_DATA_DIRECTORY)
@@ -209,7 +223,8 @@ class GSE161529(Preprocessor):
 
         return resource_df
 
-    def _annotate_epithial_cell_typing(self, adata):
+
+    def annotate_epithial_cell_typing(self, adata):
         """
         Annotates the cells for epitihial cell types:
             - basal
