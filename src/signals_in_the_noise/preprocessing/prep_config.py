@@ -1,9 +1,6 @@
 import json
-from collections import defaultdict
 from dataclasses import dataclass, asdict
 from pathlib import Path
-
-from anndata import AnnData
 
 from signals_in_the_noise.utilities.logging import get_logger
 from signals_in_the_noise.utilities.storage import get_data_path
@@ -12,7 +9,7 @@ L = get_logger(__name__)
 
 
 @dataclass
-class PreprocessorConfig:
+class PrepConfig:
     """
     Configuration used to track steps performed during preprocessing
 
@@ -32,19 +29,17 @@ class PreprocessorConfig:
             json.dump(asdict(self), f, indent=indent, ensure_ascii=False)
 
     @classmethod
-    def from_json(cls, path: Path) -> "PreprocessorConfig":
+    def from_json(cls, path: Path) -> "PrepConfig":
         with path.open("r", encoding="utf-8") as f:
             data = json.load(f)
         return cls(**data)
 
 
-class Preprocessor:
+class Prep:
     """
     Base class for preprocessing data
     """
-    config: PreprocessorConfig
-    cache_directory_path: Path
-    objects: defaultdict
+    config: PrepConfig
 
     def __init__(self, study_id: str):
         self.STUDY_ID = study_id
@@ -52,11 +47,9 @@ class Preprocessor:
         self.config_path.parent.mkdir(parents=True, exist_ok=True)
 
         if self.config_path.exists():
-            self.config = PreprocessorConfig.from_json(self.config_path)
+            self.config = PrepConfig.from_json(self.config_path)
         else:
-            self.config = PreprocessorConfig(False, False, False, False, False, False)
-
-        self.objects = defaultdict()
+            self.config = PrepConfig(False, False, False, False, False, False)
 
     @property
     def is_data_loaded(self) -> bool:
@@ -99,18 +92,3 @@ class Preprocessor:
 
     def _save_config(self):
         self.config.to_json(self.config_path)
-
-    def cache_adata_object(self, adata: AnnData, filename: str):
-        if self.cache_directory_path:
-            adata.write(self.cache_directory_path / filename)
-
-    def get_dataset(self, filename):
-        """
-        Returns a copy of the dataset
-        :param filename:
-        :return: A copy of the dataset, if it exists, otherwise an empty AnnData object
-        """
-        actual = self.objects.get(filename, None)
-        if actual is not None:
-            return actual.copy()
-        return AnnData()

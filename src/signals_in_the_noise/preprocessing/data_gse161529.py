@@ -7,7 +7,7 @@ import scanpy as sc
 from anndata import AnnData
 from slugify import slugify
 
-from signals_in_the_noise.preprocessing.preprocessor_config import Preprocessor
+from signals_in_the_noise.preprocessing.prep_config import Prep
 from signals_in_the_noise.utilities.logging import get_logger
 from signals_in_the_noise.utilities.storage import get_data_path, get_resources_path
 from signals_in_the_noise.utilities.tenx_genomics import TenX, DirectoryType
@@ -16,7 +16,7 @@ from signals_in_the_noise.utilities.tenx_genomics import TenX, DirectoryType
 L = get_logger(__name__)
 
 
-class GSE161529(Preprocessor):
+class GSE161529(Prep):
     """
     Preprocesses the dataset GSE161529 for analysis.
 
@@ -48,16 +48,28 @@ class GSE161529(Preprocessor):
         else:
             raw_data.load_adata()
 
+        self.objects = defaultdict()
         for index, adata in enumerate(raw_data.multiple_adata):
             self.objects[adata.uns['adata-filename']] = adata
 
         if not self.is_annotations_loaded:
-            self._load_annotations()
+            self.load_annotations()
 
         if not self.is_annotations_applied:
-            self._apply_annotations()
+            self.apply_annotations()
 
-    def _load_annotations(self):
+    def cache_adata_object(self, adata: AnnData, filename: str):
+        adata.write(self.cache_directory_path / filename)
+
+    def get_dataset(self, filename):
+        """
+        Returns a copy of the dataset
+        :param filename:
+        :return: anndata.AnnData
+        """
+        return self.objects[filename].copy()
+
+    def load_annotations(self):
         """
         Adds annotations from resource tables to the anndata objects for the raw data.
         :return:
@@ -98,7 +110,7 @@ class GSE161529(Preprocessor):
             self.cache_adata_object(adata, filename)
         self.annotations_loaded()
 
-    def _apply_annotations(self):
+    def apply_annotations(self):
         """
         Iterates over the objects (adatas) and uses the annotations to engineer 5 new binary features:
 
