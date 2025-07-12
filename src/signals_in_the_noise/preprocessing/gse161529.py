@@ -2,6 +2,7 @@ from collections import defaultdict
 from functools import reduce
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 import scanpy as sc
 from slugify import slugify
@@ -207,3 +208,52 @@ class GSE161529(Preprocessor):
         )
 
         return resource_df
+
+    def _annotate_epithial_cell_typing(self, adata):
+        """
+        Annotates the cells for epitihial cell types:
+            - basal
+            - luminal progenitor
+            - mature luminal
+            - other (none of the above)
+        :param adata: dataset to annotate
+        :return: dataset annotated with 4 new observations:
+            - score_basal
+                positive basal gene signature expression
+            - score_lp
+                positive luminal progenitor gene signature expression
+            - score_ml
+                postive mature luminal gene signature expression
+            - score_other
+                negative basal/lp/ml gene signature expression (may contain nan)
+        """
+        gene_signature_filenames = {
+            'basal': 'epithial_cell_typing/41591_2009_BFnm2000_MOESM13_ESM.xls',
+            'lp': 'epithial_cell_typing/41591_2009_BFnm2000_MOESM14_ESM.xls',
+            'ml': 'epithial_cell_typing/41591_2009_BFnm2000_MOESM15_ESM.xls',
+        }
+
+        # score the dataset for expression of gene signatures
+        adata = self.score_gene_signature_expression_a(
+            adata=adata,
+            gene_signature_filenames=gene_signature_filenames,
+            log_normalize=True,
+            hvg_only=True,
+            # reference article specifically mentions seurat
+            hvg_flavor='seurat'
+        )
+
+        # initial classification using the gene signature with the highest score
+        score_cols = [f"score_{k}" for k in gene_signature_filenames.keys()]
+        adata.obs['predicted_type'] = adata.obs[score_cols].idxmax(axis=1).str.replace('score_', '')
+        adata.obs['predicted_type_score'] = adata.obs[score_cols].max(axis=1)
+
+        # replace any negative scores with `other`, we only care about upregulation
+        adata.obs.loc[adata.obs['predicted_type_score'] <= 0, 'predicted_type'] = "other"
+        adata.obs['score_other'] = np.where(
+            adata.obs['predicted_type'] == 'other',
+            adata.obs['predicted_type_score'],
+            np.nan
+        )
+
+        return adata

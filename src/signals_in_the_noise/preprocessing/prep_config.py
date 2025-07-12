@@ -2,12 +2,15 @@ import json
 from collections import defaultdict
 from dataclasses import dataclass, asdict, field
 from pathlib import Path
-from typing import List
+from typing import Dict, List
 
+import pandas as pd
+import scanpy as sc
 from anndata import AnnData
 
 from signals_in_the_noise.utilities.logging import get_logger
 from signals_in_the_noise.utilities.storage import get_data_path
+from signals_in_the_noise.utilities.storage import get_resources_path
 
 L = get_logger(__name__)
 
@@ -102,3 +105,44 @@ class Preprocessor:
         if actual:
             return actual.copy()
         return AnnData()
+
+    def score_gene_signature_expression_a(
+            self,
+            adata: AnnData,
+            gene_signature_filenames: Dict[str, str],
+            *,
+            log_normalize: bool,
+            hvg_only: bool,
+            hvg_flavor: str,
+    ):
+        """
+        Scores the given dataset for the gene signatures.
+
+        Currently only supports signature files in excel and formatted for gse161529
+
+        :param adata: AnnData object to score for gene expression
+        :param gene_signature_filenames: gene name to its expression signature filename
+        :param in_place: True to modify adata in place
+        :param log_normalize: True if adata needs to be log-normalized
+        :param hvg_only: True if adata needs to be filtered to highly variable genes
+        :param hvg_flavor: One of the flavors for sc.pp.highly_variable_genes
+        :return: Dataset that now has a new column for each gene signature containing the average expression of the gene for each cell.
+        """
+        if log_normalize:
+            print("Log normalizing dataset...")
+            sc.pp.normalize_total(adata)
+            sc.pp.log1p(adata)
+        if hvg_only:
+            print("Filtering dataset to highly variable genes...")
+            sc.pp.highly_variable_genes(adata, flavor=hvg_flavor)
+            adata = adata[:, adata.var['highly_variable']]
+
+        for gene_signature, filename in gene_signature_filenames.items():
+            # read gene signature from excel file
+            signature_df = pd.read_excel(get_resources_path(self.STUDY_ID + '/' + filename))
+            genes = signature_df.loc[:, 'Symbol'].dropna().unique().tolist()
+            # only return the genes that exist in target dataset
+            actual_genes = [gene for gene in genes if gene in adata.var_names]
+            sc.tl.score_genes(adata, gene_list=actual_genes, score_name=f'score_{gene_signature}')
+
+        return adata
