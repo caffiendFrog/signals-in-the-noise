@@ -1,6 +1,9 @@
 import json
+from collections import defaultdict
 from dataclasses import dataclass, asdict
 from pathlib import Path
+
+from anndata import AnnData
 
 from signals_in_the_noise.utilities.logging import get_logger
 from signals_in_the_noise.utilities.storage import get_data_path
@@ -40,6 +43,8 @@ class Prep:
     Base class for preprocessing data
     """
     config: PrepConfig
+    cache_directory_path: Path
+    objects: defaultdict
 
     def __init__(self, study_id: str):
         self.STUDY_ID = study_id
@@ -92,3 +97,18 @@ class Prep:
 
     def _save_config(self):
         self.config.to_json(self.config_path)
+
+    def cache_adata_object(self, adata: AnnData, filename: str):
+        if self.cache_directory_path:
+            adata.write(self.cache_directory_path / filename)
+
+    def get_dataset(self, filename):
+        """
+        Returns a copy of the dataset
+        :param filename:
+        :return: a copy of the dataset if it exists, otherwise an empty AnnData object.
+        """
+        actual = self.objects.get(filename, None)
+        if actual:
+            return actual.copy()
+        return AnnData()

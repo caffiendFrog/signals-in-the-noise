@@ -4,7 +4,6 @@ from pathlib import Path
 
 import pandas as pd
 import scanpy as sc
-from anndata import AnnData
 from slugify import slugify
 
 from signals_in_the_noise.preprocessing.prep_config import Prep
@@ -57,17 +56,6 @@ class GSE161529(Prep):
 
         if not self.is_annotations_applied:
             self._apply_annotations()
-
-    def cache_adata_object(self, adata: AnnData, filename: str):
-        adata.write(self.cache_directory_path / filename)
-
-    def get_dataset(self, filename):
-        """
-        Returns a copy of the dataset
-        :param filename:
-        :return: anndata.AnnData
-        """
-        return self.objects[filename].copy()
 
     def _load_annotations(self):
         """
