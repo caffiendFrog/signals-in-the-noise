@@ -17,7 +17,6 @@ class PreprocessorConfig:
     """
     Configuration used to track steps performed during preprocessing
 
-    Might not need "cached" options, but including for now just in case.
     """
     data_loaded: bool
     annotations_loaded: bool
@@ -67,37 +66,23 @@ class Preprocessor:
 
     def data_loaded(self) -> None:
         self.config.data_loaded = True
-        self.config.data_loaded_cached = True
         self._save_config()
-
-    @property
-    def is_data_loaded_cached(self) -> bool:
-        return self.config.data_loaded_cached
 
     @property
     def is_annotations_loaded(self) -> bool:
         return self.config.annotations_loaded
 
-    @property
-    def is_annotations_loaded_cached(self) -> bool:
-        return self.config.annotations_loaded_cached
 
     def annotations_loaded(self) -> None:
         self.config.annotations_loaded = True
-        self.config.annotations_loaded_cached = True
         self._save_config()
 
     @property
     def is_annotations_applied(self) -> bool:
         return self.config.annotations_applied
 
-    @property
-    def is_annotations_applied_cached(self) -> bool:
-        return self.config.annotations_applied_cached
-
     def annotations_applied(self) -> None:
         self.config.annotations_applied = True
-        self.config.annotations_applied_cached = True
         self._save_config()
 
     def _save_config(self):
