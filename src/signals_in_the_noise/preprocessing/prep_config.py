@@ -12,7 +12,7 @@ L = get_logger(__name__)
 
 
 @dataclass
-class PrepConfig:
+class PreprocessorConfig:
     """
     Configuration used to track steps performed during preprocessing
 
@@ -32,17 +32,17 @@ class PrepConfig:
             json.dump(asdict(self), f, indent=indent, ensure_ascii=False)
 
     @classmethod
-    def from_json(cls, path: Path) -> "PrepConfig":
+    def from_json(cls, path: Path) -> "PreprocessorConfig":
         with path.open("r", encoding="utf-8") as f:
             data = json.load(f)
         return cls(**data)
 
 
-class Prep:
+class Preprocessor:
     """
     Base class for preprocessing data
     """
-    config: PrepConfig
+    config: PreprocessorConfig
     cache_directory_path: Path
     objects: defaultdict
 
@@ -52,9 +52,9 @@ class Prep:
         self.config_path.parent.mkdir(parents=True, exist_ok=True)
 
         if self.config_path.exists():
-            self.config = PrepConfig.from_json(self.config_path)
+            self.config = PreprocessorConfig.from_json(self.config_path)
         else:
-            self.config = PrepConfig(False, False, False, False, False, False)
+            self.config = PreprocessorConfig(False, False, False, False, False, False)
 
     @property
     def is_data_loaded(self) -> bool:

@@ -6,7 +6,7 @@ import pandas as pd
 import scanpy as sc
 from slugify import slugify
 
-from signals_in_the_noise.preprocessing.prep_config import Prep
+from signals_in_the_noise.preprocessing.prep_config import Preprocessor
 from signals_in_the_noise.utilities.logging import get_logger
 from signals_in_the_noise.utilities.storage import get_data_path, get_resources_path
 from signals_in_the_noise.utilities.tenx_genomics import TenX, DirectoryType
@@ -15,7 +15,7 @@ from signals_in_the_noise.utilities.tenx_genomics import TenX, DirectoryType
 L = get_logger(__name__)
 
 
-class GSE161529(Prep):
+class GSE161529(Preprocessor):
     """
     Preprocesses the dataset GSE161529 for analysis.
 
