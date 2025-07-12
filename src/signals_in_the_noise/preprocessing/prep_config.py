@@ -32,12 +32,6 @@ class PreprocessorConfig:
             L.debug(f"Writing config to {path}.")
             json.dump(asdict(self), f, indent=indent, ensure_ascii=False)
 
-    def add_custom(self, value: str) -> None:
-        custom.append(value)
-
-    def has_custom(self, value: str) -> bool:
-        return value in custom
-
     @classmethod
     def from_json(cls, path: Path) -> "PreprocessorConfig":
         with path.open("r", encoding="utf-8") as f:
@@ -86,6 +80,13 @@ class Preprocessor:
 
     def annotations_applied(self) -> None:
         self.config.annotations_applied = True
+        self._save_config()
+
+    def has_custom(self, value: str) -> bool:
+        return value in self.config.custom
+
+    def add_custom(self, value: str) -> None:
+        self.config.custom.append(value)
         self._save_config()
 
     def _save_config(self):
