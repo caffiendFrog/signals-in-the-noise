@@ -1,7 +1,8 @@
 import json
 from collections import defaultdict
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass, asdict, field
 from pathlib import Path
+from typing import List
 
 from anndata import AnnData
 
@@ -19,17 +20,21 @@ class PreprocessorConfig:
     Might not need "cached" options, but including for now just in case.
     """
     data_loaded: bool
-    data_loaded_cached: bool
     annotations_loaded: bool
-    annotations_loaded_cached: bool
     annotations_applied: bool
-    annotations_applied_cached: bool
+    custom: List[str] = field(default_factory=list)
 
     def to_json(self, path: Path, indent: int = 2) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
         with path.open("w", encoding="utf-8") as f:
             L.debug(f"Writing config to {path}.")
             json.dump(asdict(self), f, indent=indent, ensure_ascii=False)
+
+    def add_custom(self, value: str) -> None:
+        custom.append(value)
+
+    def has_custom(self, value: str) -> bool:
+        return value in custom
 
     @classmethod
     def from_json(cls, path: Path) -> "PreprocessorConfig":
@@ -54,7 +59,7 @@ class Preprocessor:
         if self.config_path.exists():
             self.config = PreprocessorConfig.from_json(self.config_path)
         else:
-            self.config = PreprocessorConfig(False, False, False, False, False, False)
+            self.config = PreprocessorConfig(False, False, False)
 
     @property
     def is_data_loaded(self) -> bool:
