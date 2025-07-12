@@ -53,10 +53,10 @@ class GSE161529(Prep):
             self.objects[adata.uns['adata-filename']] = adata
 
         if not self.is_annotations_loaded:
-            self.load_annotations()
+            self._load_annotations()
 
         if not self.is_annotations_applied:
-            self.apply_annotations()
+            self._apply_annotations()
 
     def cache_adata_object(self, adata: AnnData, filename: str):
         adata.write(self.cache_directory_path / filename)
@@ -69,7 +69,7 @@ class GSE161529(Prep):
         """
         return self.objects[filename].copy()
 
-    def load_annotations(self):
+    def _load_annotations(self):
         """
         Adds annotations from resource tables to the anndata objects for the raw data.
         :return:
@@ -110,7 +110,7 @@ class GSE161529(Prep):
             self.cache_adata_object(adata, filename)
         self.annotations_loaded()
 
-    def apply_annotations(self):
+    def _apply_annotations(self):
         """
         Iterates over the objects (adatas) and uses the annotations to engineer 5 new binary features:
 
