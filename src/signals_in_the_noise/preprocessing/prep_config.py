@@ -136,6 +136,8 @@ class Preprocessor:
         if hvg_only:
             print("Filtering dataset to highly variable genes...")
             sc.pp.highly_variable_genes(adata, flavor=hvg_flavor)
+            # save a static snapshot of the data before filtering out
+            adata.raw = adata.copy()
             adata = adata[:, adata.var['highly_variable']].copy()
 
         for gene_signature, filename in gene_signature_filenames.items():
