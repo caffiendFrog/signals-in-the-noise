@@ -254,8 +254,7 @@ class GSE161529(Preprocessor):
             adata=adata,
             gene_signature_filenames=gene_signature_filenames,
             log_normalize=True,
-            hvg_only=hvg_only
-            ,
+            hvg_only=hvg_only,
             # reference article specifically mentions seurat
             hvg_flavor='seurat'
         )
