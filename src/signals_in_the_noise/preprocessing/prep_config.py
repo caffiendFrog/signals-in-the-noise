@@ -43,11 +43,11 @@ class Preprocessor:
     """
     Base class for preprocessing data
     """
-    config: PreprocessorConfig
-    cache_directory_path: Path
-    objects: defaultdict
-
     def __init__(self, study_id: str):
+        self.cache_directory_path = ''
+        self.objects = defaultdict(list)
+        self.random_kwargs = defaultdict(str)
+
         self.STUDY_ID = study_id
         self.config_path = Path(get_data_path(f"{study_id}.json"))
         self.config_path.parent.mkdir(parents=True, exist_ok=True)
@@ -106,6 +106,9 @@ class Preprocessor:
         if actual:
             return actual.copy()
         return AnnData()
+
+    def get_random_kwarg(self, key):
+        return self.random_kwargs.get(key, None)
 
     def score_gene_signature_expression(
             self,
