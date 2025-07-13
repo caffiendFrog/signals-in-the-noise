@@ -224,7 +224,7 @@ class GSE161529(Preprocessor):
         return resource_df
 
 
-    def annotate_epithial_cell_typing(self, adata):
+    def annotate_epithial_cell_typing(self, adata, *, hvg_only=True):
         """
         Annotates the cells for epitihial cell types:
             - basal
@@ -254,7 +254,8 @@ class GSE161529(Preprocessor):
             adata=adata,
             gene_signature_filenames=gene_signature_filenames,
             log_normalize=True,
-            hvg_only=True,
+            hvg_only=hvg_only
+            ,
             # reference article specifically mentions seurat
             hvg_flavor='seurat'
         )
