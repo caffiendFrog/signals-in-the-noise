@@ -2,9 +2,13 @@ from collections import defaultdict
 from functools import reduce
 from pathlib import Path
 
+import anndata as ad
 import numpy as np
 import pandas as pd
 import scanpy as sc
+
+from openTSNE import TSNE
+from scipy import sparse
 from slugify import slugify
 
 from signals_in_the_noise.preprocessing.prep_config import Preprocessor
@@ -62,7 +66,11 @@ class GSE161529(Preprocessor):
         else:
             raw_data.load_adata()
 
-        self.objects = defaultdict()
+        self.random_kwargs = {
+            'use_rep': 'X_pca',
+            'random_state': 43,
+        }
+
         for index, adata in enumerate(raw_data.multiple_adata):
             self.objects[adata.uns['adata-filename']] = adata
 
@@ -274,3 +282,42 @@ class GSE161529(Preprocessor):
 
         return adata.copy()
 
+    def get_combined_epithilial_dataset(self):
+        adatas_real = []
+        adatas_noise = []
+        for idx, filename in enumerate(self.EPI_CELL_TYPING_FILENAMES):
+            adata = self.get_dataset(filename)
+            adata.obs_names = [f"{filename}_{i}" for i in range(adata.n_obs)]
+
+            for is_noise in (0, 1):
+                adata_subset = adata[adata.obs['is_noise'] == is_noise].copy()
+                adata_subset = self.annotate_epithial_cell_typing(adata_subset)
+                # remove stromal cells - "...removed the stromal subset..."
+                mask = ~adata_subset.obs['predicted_type'].str.lower().str.contains('stromal')
+                adata_subset = adata_subset[mask].copy()
+                # additional features for visualizations
+                adata_subset.obs['specimen_id'] = str(idx)
+                adata_subset.obs['hormonal_status'] = adata_subset.uns['menopause_status']
+                # just in case
+                if sparse.issparse(adata_subset.X):
+                    adata_subset.X = adata_subset.X.toarray()
+
+                if not is_noise:
+                    adatas_real.append(adata_subset)
+                else:
+                    adatas_noise.append(adata_subset)
+
+        adatas_all_real = ad.concat(adatas_real, join='inner')
+        adatas_all_noise = ad.concat(adatas_noise, join='inner')
+
+        return adatas_all_real, adatas_all_noise
+
+    def visualize_tsne(self, adata, color, *, use_raw=False, use_leiden=True, resolution=0.015):
+        sc.pp.scale(adata)
+        sc.pp.pca(adata, random_state=self.get_random_kwarg('random_state'))
+        sc.pp.neighbors(adata, **self.random_kwargs)
+        if use_leiden:
+            # use of leiden and resolution specified in caption for Figure 1E
+            sc.tl.leiden(adata, resolution=resolution, random_state=self.get_random_kwarg('random_state'))
+        sc.tl.tsne(adata, **self.random_kwargs)
+        sc.pl.tsne(adata, color=color, use_raw=use_raw)
