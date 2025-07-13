@@ -1,4 +1,6 @@
 import json
+import random
+
 from collections import defaultdict
 from dataclasses import dataclass, asdict, field
 from pathlib import Path
@@ -107,8 +109,11 @@ class Preprocessor:
             return actual.copy()
         return AnnData()
 
-    def get_random_kwarg(self, key):
-        return self.random_kwargs.get(key, None)
+    @property
+    def random_seed(self):
+        if 'random_state' not in self.random_kwargs:
+            self.random_kwargs['random_state'] = random.randint(1, 100)
+        return self.random_kwargs.get('random_state', None)
 
     def score_gene_signature_expression(
             self,
