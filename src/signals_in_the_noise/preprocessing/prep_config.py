@@ -107,7 +107,7 @@ class Preprocessor:
             return actual.copy()
         return AnnData()
 
-    def score_gene_signature_expression_a(
+    def score_gene_signature_expression(
             self,
             adata: AnnData,
             gene_signature_filenames: Dict[str, str],
@@ -136,7 +136,7 @@ class Preprocessor:
         if hvg_only:
             print("Filtering dataset to highly variable genes...")
             sc.pp.highly_variable_genes(adata, flavor=hvg_flavor)
-            adata = adata[:, adata.var['highly_variable']]
+            adata = adata[:, adata.var['highly_variable']].copy()
 
         for gene_signature, filename in gene_signature_filenames.items():
             # read gene signature from excel file
@@ -144,6 +144,6 @@ class Preprocessor:
             genes = signature_df.loc[:, 'Symbol'].dropna().unique().tolist()
             # only return the genes that exist in target dataset
             actual_genes = [gene for gene in genes if gene in adata.var_names]
-            sc.tl.score_genes(adata, gene_list=actual_genes, score_name=f'score_{gene_signature}')
+            sc.tl.score_genes(adata, gene_list=actual_genes, score_name=f'score_{gene_signature}', random_state=43)
 
         return adata

@@ -246,10 +246,11 @@ class GSE161529(Preprocessor):
             'basal': 'epithial_cell_typing/41591_2009_BFnm2000_MOESM13_ESM.xls',
             'lp': 'epithial_cell_typing/41591_2009_BFnm2000_MOESM14_ESM.xls',
             'ml': 'epithial_cell_typing/41591_2009_BFnm2000_MOESM15_ESM.xls',
+            'stromal': 'epithial_cell_typing/41591_2009_BFnm2000_MOESM16_ESM.xls',
         }
 
         # score the dataset for expression of gene signatures
-        adata = self.score_gene_signature_expression_a(
+        adata = self.score_gene_signature_expression(
             adata=adata,
             gene_signature_filenames=gene_signature_filenames,
             log_normalize=True,
@@ -271,4 +272,5 @@ class GSE161529(Preprocessor):
             np.nan
         )
 
-        return adata
+        return adata.copy()
+
