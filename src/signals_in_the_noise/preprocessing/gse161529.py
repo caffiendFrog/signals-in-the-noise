@@ -314,10 +314,23 @@ class GSE161529(Preprocessor):
 
     def visualize_tsne(self, adata, color, *, use_raw=False, use_leiden=True, resolution=0.015):
         sc.pp.scale(adata)
-        sc.pp.pca(adata, random_state=self.get_random_kwarg('random_state'))
-        sc.pp.neighbors(adata, **self.random_kwargs)
+        # -- for determinism, specify n_comps/n_pcs
+        sc.pp.pca(adata, n_comps=50, random_state=self.random_seed)
+        sc.pp.neighbors(adata, n_pcs=50, **self.random_kwargs)
         if use_leiden:
             # use of leiden and resolution specified in caption for Figure 1E
-            sc.tl.leiden(adata, resolution=resolution, random_state=self.get_random_kwarg('random_state'))
-        sc.tl.tsne(adata, **self.random_kwargs)
+            sc.tl.leiden(adata, resolution=resolution, random_state=self.random_seed)
+        tsne = TSNE(
+            random_state=self.random_seed,
+            # -- for determinism, set initialization to PCA
+            initialization='pca',
+            # -- for determinism, use a single thread
+            n_jobs=1,
+            # -- use the default values scanpy uses
+            n_iter=1000,
+            learning_rate=200,
+        )
+        # -- for determinism, round the value to guard against floating point noise
+        X_pca = adata.obsm['X_pca']
+        adata.obsm['X_tsne'] = tsne.fit(np.round(X_pca, decimals=10))
         sc.pl.tsne(adata, color=color, use_raw=use_raw)
