@@ -312,7 +312,7 @@ class GSE161529(Preprocessor):
 
         return adatas_all_real, adatas_all_noise
 
-    def visualize_tsne(self, adata, color, *, use_raw=False, use_leiden=True, resolution=0.015):
+    def visualize_tsne(self, adata, color, *, use_raw=False, use_leiden=True, resolution=0.015, plot_kwargs:dict=None):
         sc.pp.scale(adata)
         # -- for determinism, specify n_comps/n_pcs
         sc.pp.pca(adata, n_comps=50, random_state=self.random_seed)
@@ -333,4 +333,10 @@ class GSE161529(Preprocessor):
         # -- for determinism, round the value to guard against floating point noise
         X_pca = adata.obsm['X_pca']
         adata.obsm['X_tsne'] = tsne.fit(np.round(X_pca, decimals=10))
-        sc.pl.tsne(adata, color=color, use_raw=use_raw)
+        if plot_kwargs:
+            kwargs = plot_kwargs.copy()
+            kwargs['color'] = color
+            kwargs['use_raw'] = use_raw
+            sc.pl.tsne(adata, **kwargs)
+        else:
+            sc.pl.tsne(adata, color=color, use_raw=use_raw)
