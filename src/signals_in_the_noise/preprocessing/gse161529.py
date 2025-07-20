@@ -41,17 +41,17 @@ class GSE161529(Preprocessor):
     ]
 
     EPI_CELL_TYPING_FILENAMES = {
-        "N-1105-epi": "GSM4909260_N-N1105-Epi",
-        "N-0280-epi": "GSM4909255_N-N280-Epi",
-        "N-0230.16-epi": "GSM4909264_N-N1B-Epi",
-        "N-0408-epi": "GSM4909259_N-NE-Epi",
-        "N-1469-epi": "GSM4909258_N-NF-Epi",
-        "N-0123-epi": "GSM4909267_N-MH0023-Epi",
-        "N-0064-epi": "GSM4909313_N-MH0064-Epi",
-        "N-0093-epi": "GSM4909256_N-PM0095-Epi",
-        "N-0342-epi": "GSM4909269_N-PM0342-Epi",
-        "N-0372-epi": "GSM4909275_N-PM0372-Epi",
-        "N-0275-epi": "GSM4909273_N-MH275-Epi",
+        "N-1105-epi": "GSM4909260_N-N1105-Epi.h5ad",
+        "N-0280-epi": "GSM4909255_N-N280-Epi.h5ad",
+        "N-0230.16-epi": "GSM4909264_N-N1B-Epi.h5ad",
+        "N-0408-epi": "GSM4909259_N-NE-Epi.h5ad",
+        "N-1469-epi": "GSM4909258_N-NF-Epi.h5ad",
+        "N-0123-epi": "GSM4909267_N-MH0023-Epi.h5ad",
+        "N-0064-epi": "GSM4909262_N-MH0064-Epi.h5ad",
+        "N-0093-epi": "GSM4909256_N-PM0095-Epi.h5ad",
+        "N-0342-epi": "GSM4909269_N-PM0342-Epi.h5ad",
+        "N-0372-epi": "GSM4909275_N-PM0372-Epi.h5ad",
+        "N-0275-epi": "GSM4909273_N-MH275-Epi.h5ad",
     }
 
     def __init__(self):
@@ -285,7 +285,7 @@ class GSE161529(Preprocessor):
     def get_combined_epithilial_dataset(self):
         adatas_real = []
         adatas_noise = []
-        for idx, filename in enumerate(self.EPI_CELL_TYPING_FILENAMES.values()):
+        for idx, (specimen_id, filename) in enumerate(self.EPI_CELL_TYPING_FILENAMES.items()):
             adata = self.get_dataset(filename)
             adata.obs_names = [f"{filename}_{i}" for i in range(adata.n_obs)]
 
@@ -296,7 +296,7 @@ class GSE161529(Preprocessor):
                 mask = ~adata_subset.obs['predicted_type'].str.lower().str.contains('stromal')
                 adata_subset = adata_subset[mask].copy()
                 # additional features for visualizations
-                adata_subset.obs['specimen_id'] = adata.uns['adata-filename'].split('.')[0].split('_')[1]
+                adata_subset.obs['specimen_id'] = specimen_id
                 adata_subset.obs['hormonal_status'] = adata_subset.uns['menopause_status']
                 # just in case
                 if sparse.issparse(adata_subset.X):
