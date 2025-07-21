@@ -291,8 +291,8 @@ class GSE161529(Preprocessor):
 
         if all([all_real_path.exists(), all_noise_path.exists()]):
             L.info("Loading combined datasets...")
-            adatas_all_real = ad.read(all_real_filename)
-            adatas_all_noise = ad.read(all_noise_filename)
+            adatas_all_real = ad.read_h5ad(all_real_filename)
+            adatas_all_noise = ad.read_h5ad(all_noise_filename)
         else:
             L.info("Combining datasets...")
             adatas_real = []
