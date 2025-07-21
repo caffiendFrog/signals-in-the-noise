@@ -282,7 +282,16 @@ class GSE161529(Preprocessor):
 
         return adata.copy()
 
-    def get_combined_epithilial_dataset(self):
+    def _check_adata_for_genes(self, adata, genes_to_check):
+        missing = []
+        for gene in genes_to_check:
+            if gene not in adata.var_names:
+                missing.append(gene)
+
+        return missing
+
+
+    def get_combined_epithilial_dataset(self, *, hvg_only=True, apply_tsne=True, genes_to_check=None):
         all_real_filename = get_data_path("combined_epi_normal_real.h5ad")
         all_noise_filename = get_data_path("combined_epi_normal_noise.h5ad")
 
@@ -303,10 +312,19 @@ class GSE161529(Preprocessor):
 
                 for is_noise in (0, 1):
                     adata_subset = adata[adata.obs['is_noise'] == is_noise].copy()
-                    adata_subset = self.annotate_epithial_cell_typing(adata_subset)
+                    if genes_to_check:
+                        missing = self._check_adata_for_genes(adata_subset, genes_to_check)
+                        L.info(f"[before annotation] Sanity check genes missing ({len(missing)}) {', '.join(missing)}")
+
+                    adata_subset = self.annotate_epithial_cell_typing(adata_subset, hvg_only=hvg_only)
                     # remove stromal cells - "...removed the stromal subset..."
                     mask = ~adata_subset.obs['predicted_type'].str.lower().str.contains('stromal')
                     adata_subset = adata_subset[mask].copy()
+
+                    if genes_to_check:
+                        missing = self._check_adata_for_genes(adata_subset, genes_to_check)
+                        L.info(f"[after stromal filter], sanity check genes missing ({len(missing)}) {', '.join(missing)}")
+
                     # additional features for visualizations
                     adata_subset.obs['specimen_id'] = specimen_id
                     adata_subset.obs['hormonal_status'] = adata_subset.uns['menopause_status']
@@ -322,9 +340,10 @@ class GSE161529(Preprocessor):
             adatas_all_real = ad.concat(adatas_real, join='inner')
             adatas_all_noise = ad.concat(adatas_noise, join='inner')
 
-            # reduce dimensions
-            self.apply_tsne(adatas_all_real)
-            self.apply_tsne(adatas_all_noise)
+            if apply_tsne:
+                # reduce dimensions
+                self.apply_tsne(adatas_all_real)
+                self.apply_tsne(adatas_all_noise)
 
             # write out the combined datasets
             adatas_all_real.write(all_real_filename)
@@ -355,7 +374,7 @@ class GSE161529(Preprocessor):
         X_embedding = tsne.fit(np.round(X_pca, decimals=10))
         adata.obsm['X_tsne'] = np.asarray(X_embedding)
 
-    def visualize_tsne(self, adata, color, *, use_raw=False, plot_kwargs:dict=None):
+    def visualize_tsne(self, adata, color, *, use_raw=False, plot_kwargs=None):
         if plot_kwargs:
             kwargs = plot_kwargs.copy()
             kwargs['color'] = color
