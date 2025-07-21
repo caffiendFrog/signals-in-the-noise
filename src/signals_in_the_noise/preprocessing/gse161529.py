@@ -283,36 +283,56 @@ class GSE161529(Preprocessor):
         return adata.copy()
 
     def get_combined_epithilial_dataset(self):
-        adatas_real = []
-        adatas_noise = []
-        for idx, (specimen_id, filename) in enumerate(self.EPI_CELL_TYPING_FILENAMES.items()):
-            adata = self.get_dataset(filename)
-            adata.obs_names = [f"{filename}_{i}" for i in range(adata.n_obs)]
+        all_real_filename = get_data_path("combined_epi_normal_real.h5ad")
+        all_noise_filename = get_data_path("combined_epi_normal_noise.h5ad")
 
-            for is_noise in (0, 1):
-                adata_subset = adata[adata.obs['is_noise'] == is_noise].copy()
-                adata_subset = self.annotate_epithial_cell_typing(adata_subset)
-                # remove stromal cells - "...removed the stromal subset..."
-                mask = ~adata_subset.obs['predicted_type'].str.lower().str.contains('stromal')
-                adata_subset = adata_subset[mask].copy()
-                # additional features for visualizations
-                adata_subset.obs['specimen_id'] = specimen_id
-                adata_subset.obs['hormonal_status'] = adata_subset.uns['menopause_status']
-                # just in case
-                if sparse.issparse(adata_subset.X):
-                    adata_subset.X = adata_subset.X.toarray()
+        all_real_path = Path(all_real_filename)
+        all_noise_path = Path(all_noise_filename)
 
-                if not is_noise:
-                    adatas_real.append(adata_subset)
-                else:
-                    adatas_noise.append(adata_subset)
+        if all([all_real_path.exists(), all_noise_path.exists()]):
+            L.info("Loading combined datasets...")
+            adatas_all_real = ad.read(all_real_filename)
+            adatas_all_noise = ad.read(all_noise_filename)
+        else:
+            L.info("Combining datasets...")
+            adatas_real = []
+            adatas_noise = []
+            for idx, (specimen_id, filename) in enumerate(self.EPI_CELL_TYPING_FILENAMES.items()):
+                adata = self.get_dataset(filename)
+                adata.obs_names = [f"{filename}_{i}" for i in range(adata.n_obs)]
 
-        adatas_all_real = ad.concat(adatas_real, join='inner')
-        adatas_all_noise = ad.concat(adatas_noise, join='inner')
+                for is_noise in (0, 1):
+                    adata_subset = adata[adata.obs['is_noise'] == is_noise].copy()
+                    adata_subset = self.annotate_epithial_cell_typing(adata_subset)
+                    # remove stromal cells - "...removed the stromal subset..."
+                    mask = ~adata_subset.obs['predicted_type'].str.lower().str.contains('stromal')
+                    adata_subset = adata_subset[mask].copy()
+                    # additional features for visualizations
+                    adata_subset.obs['specimen_id'] = specimen_id
+                    adata_subset.obs['hormonal_status'] = adata_subset.uns['menopause_status']
+                    # just in case
+                    if sparse.issparse(adata_subset.X):
+                        adata_subset.X = adata_subset.X.toarray()
+
+                    if not is_noise:
+                        adatas_real.append(adata_subset)
+                    else:
+                        adatas_noise.append(adata_subset)
+
+            adatas_all_real = ad.concat(adatas_real, join='inner')
+            adatas_all_noise = ad.concat(adatas_noise, join='inner')
+
+            # reduce dimensions
+            self.apply_tsne(adatas_all_real)
+            self.apply_tsne(adatas_all_noise)
+
+            # write out the combined datasets
+            adatas_all_real.write(all_real_filename)
+            adatas_all_noise.write(all_noise_filename)
 
         return adatas_all_real, adatas_all_noise
 
-    def visualize_tsne(self, adata, color, *, use_raw=False, use_leiden=True, resolution=0.015, plot_kwargs:dict=None):
+    def apply_tsne(self, adata, *, use_leiden=True, resolution=0.015):
         sc.pp.scale(adata)
         # -- for determinism, specify n_comps/n_pcs
         sc.pp.pca(adata, n_comps=50, random_state=self.random_seed)
@@ -332,7 +352,10 @@ class GSE161529(Preprocessor):
         )
         # -- for determinism, round the value to guard against floating point noise
         X_pca = adata.obsm['X_pca']
-        adata.obsm['X_tsne'] = tsne.fit(np.round(X_pca, decimals=10))
+        X_embedding = tsne.fit(np.round(X_pca, decimals=10))
+        adata.obsm['X_tsne'] = np.asarray(X_embedding)
+
+    def visualize_tsne(self, adata, color, *, use_raw=False, plot_kwargs:dict=None):
         if plot_kwargs:
             kwargs = plot_kwargs.copy()
             kwargs['color'] = color
