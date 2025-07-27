@@ -54,6 +54,23 @@ class GSE161529(Preprocessor):
         "N-0275-epi": "GSM4909273_N-MH275-Epi.h5ad",
     }
 
+    EPI_CELL_TYPING_GENES = {
+        "EPCAM_expr": "EPCAM",
+        "KRT5_expr": "KRT5",
+        "ACTA2_expr": "ACTA2",
+        "MYLK_expr": "MYLK",
+        "SNAI2_expr": "SNAI2",
+        "NOTCH4_expr": "NOTCH4",
+        "DKK3_expr": "DKK3",
+        "CD49f_expr": "ITGA6",
+        "ESR1_expr": "ESR1",
+        "PGR_expr": "PGR",
+        "FOXA1_expr": "FOXA1",
+        "TNFRSF11A_expr": "TNFRSF11A",
+        "KIT_expr": "KIT",
+        "SOX10_expr": "SOX10",
+    }
+
     def __init__(self):
         super().__init__(self.STUDY_ID)
         raw_data_directory = get_data_path(self.RAW_DATA_DIRECTORY)
@@ -283,13 +300,35 @@ class GSE161529(Preprocessor):
         return adata.copy()
 
     def _check_adata_for_genes(self, adata, genes_to_check):
+        var_names_lower = {name.lower(): name for name in adata.var_names}
         missing = []
         for gene in genes_to_check:
-            if gene not in adata.var_names:
+            if gene.lower() not in var_names_lower:
                 missing.append(gene)
 
         return missing
 
+    def _cache_combined_epithilial_gene_expression(self, adata):
+        """
+        Store the gene expression for selected genes to reproduce figure 1h so that we
+        have the values after additional filtering has been done.
+        :param adata:
+        :return:
+        """
+        var_names_lower = {name.lower(): name for name in adata.var_names}
+
+        for obs_name, gene_name in self.EPI_CELL_TYPING_GENES.items():
+            if gene_name.lower() in var_names_lower:
+                gene_expression = adata[:, gene_name].X
+                if not isinstance(gene_expression, np.ndarray):
+                    gene_expression = gene_expression.toarray()
+                gene_expression = gene_expression.flatten()
+            else:
+                gene_expression = np.zeros(adata.n_obs)
+
+            adata.obs[obs_name] = gene_expression
+
+        return adata.copy()
 
     def get_combined_epithilial_dataset(self, *, hvg_only=True, apply_tsne=True, genes_to_check=None):
         all_real_filename = get_data_path("combined_epi_normal_real.h5ad")
@@ -315,7 +354,7 @@ class GSE161529(Preprocessor):
                     if genes_to_check:
                         missing = self._check_adata_for_genes(adata_subset, genes_to_check)
                         L.info(f"[before annotation] Sanity check genes missing ({len(missing)}) {', '.join(missing)}")
-
+                    adata_subset = self._cache_combined_epithilial_gene_expression(adata_subset)
                     adata_subset = self.annotate_epithial_cell_typing(adata_subset, hvg_only=hvg_only)
                     # remove stromal cells - "...removed the stromal subset..."
                     mask = ~adata_subset.obs['predicted_type'].str.lower().str.contains('stromal')
