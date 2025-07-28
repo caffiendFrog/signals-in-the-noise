@@ -390,14 +390,25 @@ class GSE161529(Preprocessor):
 
         return adatas_all_real, adatas_all_noise
 
-    def apply_tsne(self, adata, *, use_leiden=True, resolution=0.015):
+    def apply_tsne(self, adata, *, use_leiden=True, resolution=0.015, n_neighbors=15, n_pcs=None):
+        """
+
+        :param adata:
+        :param use_leiden: True to use leiden, False to use louvain
+        :param resolution: default value specified in paper
+        :param n_neighbors: default value specified by scanpy docs
+        :param n_pcs: default value specified by scanpy docs
+        :return:
+        """
         sc.pp.scale(adata)
         # -- for determinism, specify n_comps/n_pcs
         sc.pp.pca(adata, n_comps=50, random_state=self.random_seed)
-        sc.pp.neighbors(adata, n_pcs=50, **self.random_kwargs)
+        sc.pp.neighbors(adata, n_pcs=n_pcs, n_neighbors=n_neighbors, **self.random_kwargs)
         if use_leiden:
-            # use of leiden and resolution specified in caption for Figure 1E
             sc.tl.leiden(adata, resolution=resolution, random_state=self.random_seed)
+        else:
+            sc.tl.louvain(adata, resolution=resolution, random_state=self.random_seed)
+        # -- for finer control on determinism, manually configure TSNE
         tsne = TSNE(
             random_state=self.random_seed,
             # -- for determinism, set initialization to PCA
