@@ -194,9 +194,9 @@ class GSE161529(Preprocessor):
         adata.obs['is_high_total_count'] = (adata.obs['total_counts'] >= adata.uns['qc_total_upper']).astype(int)
 
         # Additional features while we're here
-        adata.obs['zero_genes'] = (adata.obs['n_genes_by_counts'] == 0).count()
-        adata.obs['zero_mito'] = (adata.obs['pct_counts_mt'] == 0).count()
-        adata.obs['zero_count'] = (adata.obs['total_counts'] == 0).count()
+        adata.obs['zero_genes'] = (adata.obs['n_genes_by_counts'] == 0).astype(int)
+        adata.obs['zero_mito'] = (adata.obs['pct_counts_mt'] == 0).astype(int)
+        adata.obs['zero_count'] = (adata.obs['total_counts'] == 0).astype(int)
 
         # Identify observation as noise
         adata.obs['is_noise'] = (
@@ -367,6 +367,10 @@ class GSE161529(Preprocessor):
                     # additional features for visualizations
                     adata_subset.obs['specimen_id'] = specimen_id
                     adata_subset.obs['hormonal_status'] = adata_subset.uns['menopause_status']
+                    adata_subset.obs['cancer_type'] = adata_subset.uns['cancer_type']
+                    adata_subset.obs['cell_population'] = adata_subset.uns['cell_population']
+                    adata_subset.obs['gender'] = adata_subset.uns['gender']
+                    adata_subset.obs['parity'] = adata_subset.uns['parity']
                     # just in case
                     if sparse.issparse(adata_subset.X):
                         adata_subset.X = adata_subset.X.toarray()
