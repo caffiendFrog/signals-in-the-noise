@@ -330,7 +330,7 @@ class GSE161529(Preprocessor):
 
         return adata.copy()
 
-    def get_combined_epithilial_dataset(self, *, hvg_only=True, apply_tsne=True, genes_to_check=None):
+    def get_combined_epithilial_dataset(self, *, hvg_only=True, hvg_post_stromal=False, apply_tsne=True, genes_to_check=None):
         all_real_filename = get_data_path("combined_epi_normal_real.h5ad")
         all_noise_filename = get_data_path("combined_epi_normal_noise.h5ad")
 
@@ -359,6 +359,10 @@ class GSE161529(Preprocessor):
                     # remove stromal cells - "...removed the stromal subset..."
                     mask = ~adata_subset.obs['predicted_type'].str.lower().str.contains('stromal')
                     adata_subset = adata_subset[mask].copy()
+                    if hvg_only and hvg_post_stromal:
+                        sc.pp.highly_variable_genes(adata_subset)
+                        adata_subset.raw = adata_subset.copy()
+                        adata_subset = adata_subset[:, adata_subset.var['highly_variable']].copy()
 
                     if genes_to_check:
                         missing = self._check_adata_for_genes(adata_subset, genes_to_check)
@@ -383,7 +387,12 @@ class GSE161529(Preprocessor):
             adatas_all_real = ad.concat(adatas_real, join='inner')
             adatas_all_noise = ad.concat(adatas_noise, join='inner')
 
-            if apply_tsne:
+            if apply_tsne and hvg_post_stromal:
+                # reduce dimensions
+                self.apply_tsne(adatas_all_real, n_comps=20)
+                self.apply_tsne(adatas_all_noise, n_comps=4)
+
+            if apply_tsne and not hvg_post_stromal:
                 # reduce dimensions
                 self.apply_tsne(adatas_all_real)
                 self.apply_tsne(adatas_all_noise)
@@ -394,7 +403,7 @@ class GSE161529(Preprocessor):
 
         return adatas_all_real, adatas_all_noise
 
-    def apply_tsne(self, adata, *, use_leiden=True, resolution=0.015, n_neighbors=15, n_pcs=None):
+    def apply_tsne(self, adata, *, use_leiden=True, resolution=0.015, n_neighbors=15, n_comps=50, n_pcs=None):
         """
 
         :param adata:
@@ -406,7 +415,7 @@ class GSE161529(Preprocessor):
         """
         sc.pp.scale(adata)
         # -- for determinism, specify n_comps/n_pcs
-        sc.pp.pca(adata, n_comps=50, random_state=self.random_seed)
+        sc.pp.pca(adata, n_comps=n_comps, random_state=self.random_seed)
         sc.pp.neighbors(adata, n_pcs=n_pcs, n_neighbors=n_neighbors, **self.random_kwargs)
         if use_leiden:
             sc.tl.leiden(adata, resolution=resolution, random_state=self.random_seed)
