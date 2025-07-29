@@ -47,7 +47,7 @@ class Preprocessor:
     """
     def __init__(self, study_id: str):
         self.cache_directory_path = ''
-        self.objects = defaultdict(list)
+        self.objects = defaultdict(AnnData)
         self.random_kwargs = defaultdict(str)
 
         self.STUDY_ID = study_id
