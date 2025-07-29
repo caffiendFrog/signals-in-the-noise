@@ -71,6 +71,38 @@ class GSE161529(Preprocessor):
         "SOX10_expr": "SOX10",
     }
 
+    G2M_CHECKPOINT_GENES = {
+        "CDC25C_expr": "CDC25C",
+        "CDK1_expr": "CDK1",
+        "PLK1_expr": "PLK1",
+        "AURKA_expr": "AURKA",
+        "WEE1_expr": "WEE1",
+    }
+
+    E2F_REGULATION_GENES = {
+        "CDK1_expr": "CDK1",
+        "CCNA2_expr": "CCNA2",
+        "E2F1_expr": "E2F1",
+        "E2F2_expr": "E2F2",
+    }
+
+    DDR_GENES = {
+        "BRCA1_expr": "BRCA1",
+        "BRCA2_expr": "BRCA2",
+        "RAD51_expr": "RAD51",
+        "ATM_expr": "ATM",
+        "CHEK2_expr": "CHEK2",
+        "XRCC1_expr": "XRCC1",
+    }
+
+    UPR_GENES = {
+        "ATF6_expr": "ATF6",
+        "XBP1_expr": "XBP1",
+        "CHOP_expr": "DDIT3",
+        "GRP78_expr": "HSPA5",
+        "PERK_expr": "EIF2AK3",
+    }
+
     def __init__(self):
         super().__init__(self.STUDY_ID)
         raw_data_directory = get_data_path(self.RAW_DATA_DIRECTORY)
@@ -316,19 +348,27 @@ class GSE161529(Preprocessor):
         :return:
         """
         var_names_lower = {name.lower(): name for name in adata.var_names}
+        adata = adata.copy()
 
-        for obs_name, gene_name in self.EPI_CELL_TYPING_GENES.items():
-            if gene_name.lower() in var_names_lower:
-                gene_expression = adata[:, gene_name].X
-                if not isinstance(gene_expression, np.ndarray):
-                    gene_expression = gene_expression.toarray()
-                gene_expression = gene_expression.flatten()
-            else:
-                gene_expression = np.zeros(adata.n_obs)
+        for genes_of_interest in [
+            self.EPI_CELL_TYPING_GENES,
+            self.G2M_CHECKPOINT_GENES,
+            self.E2F_REGULATION_GENES,
+            self.DDR_GENES,
+            self.UPR_GENES,
+        ]:
+            for obs_name, gene_name in genes_of_interest.items():
+                if gene_name.lower() in var_names_lower:
+                    gene_expression = adata[:, gene_name].X
+                    if not isinstance(gene_expression, np.ndarray):
+                        gene_expression = gene_expression.toarray()
+                    gene_expression = gene_expression.flatten()
+                else:
+                    gene_expression = np.zeros(adata.n_obs)
 
-            adata.obs[obs_name] = gene_expression
+                adata.obs[obs_name] = gene_expression
 
-        return adata.copy()
+        return adata
 
     def get_combined_epithilial_dataset(self, *, hvg_only=True, hvg_post_stromal=False, apply_tsne=True, genes_to_check=None):
         all_real_filename = get_data_path("combined_epi_normal_real.h5ad")
