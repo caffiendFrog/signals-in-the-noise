@@ -121,7 +121,7 @@ class GSE161529(Preprocessor):
         }
 
         for index, adata in enumerate(raw_data.multiple_adata):
-            self.objects[adata.uns['adata-filename']] = adata
+            self.objects[adata.obs['adata-filename'].iloc[0]] = adata
 
         if not self.is_annotations_loaded:
             self._load_annotations()
@@ -195,7 +195,7 @@ class GSE161529(Preprocessor):
         failed = {}
         success = {}
         for index, adata in enumerate(self.objects.values()):
-            filename = adata.uns['adata-filename']
+            filename = adata.obs['adata-filename'].iloc[0]
             try:
                 L.info(f"Applying annotations for {filename}")
                 self._apply_one(adata)
@@ -262,7 +262,7 @@ class GSE161529(Preprocessor):
         # The number of observations that are not noise should match with the published "after" count
         actual_count = adata[adata.obs['is_noise'] == 0, :].shape[0]
         expected_count = adata.uns['num_cells_after']
-        if not bool(actual_count == expected_count) and not (adata.uns['adata-filename'] in GSE161529.EXPECTED_MISMATCHES):
+        if not bool(actual_count == expected_count) and not (adata.obs['adata-filename'].iloc[0] in GSE161529.EXPECTED_MISMATCHES):
             raise ValueError(f"Check failed! Expected {expected_count} but got {actual_count}.")
 
 
@@ -382,10 +382,10 @@ class GSE161529(Preprocessor):
 
         for genes_of_interest in [
             self.EPI_CELL_TYPING_GENES,
-            self.G2M_CHECKPOINT_GENES,
-            self.E2F_REGULATION_GENES,
-            self.DDR_GENES,
-            self.UPR_GENES,
+            # self.G2M_CHECKPOINT_GENES,
+            # self.E2F_REGULATION_GENES,
+            # self.DDR_GENES,
+            # self.UPR_GENES,
         ]:
             for obs_name, gene_name in genes_of_interest.items():
                 if gene_name.lower() in var_names_lower:

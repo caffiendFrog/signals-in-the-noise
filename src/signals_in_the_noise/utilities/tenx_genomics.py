@@ -72,7 +72,7 @@ class TenX:
         for file in cache_directory.iterdir():
             L.info(f"Reading {file} as AnnData object.")
             adata = sc.read_h5ad(file)
-            adata.uns['adata-filename'] = file.name
+            adata.obs['adata-filename'] = file.name
             self.multiple_adata.append(adata)
 
     def load_data(self, *, cache=True):
@@ -121,13 +121,16 @@ class TenX:
         :return:
         """
         missing_targets = defaultdict(list)
+        skipped_files = []
         for sample_identifier, filenames in samples_to_files.items():
             sample_dir = f"{self.study_directory}/{sample_identifier}"
             os.makedirs(sample_dir, exist_ok=True)
-            cache_filename = f"{cache_directory}/{sample_identifier}.h5ad"
-            if Path(cache_filename).exists():
+            cached_path = Path(f"{cache_directory}/{sample_identifier}.h5ad")
+            if cached_path.exists():
                 L.info(f"Skipping {sample_identifier} because it already exists as an `.h5ad` file.")
+                skipped_files.append(cached_path)
                 continue
+
             for filename in filenames:
                 target_path = None
                 source_path = f"{self.directory}/{filename}"
@@ -151,10 +154,16 @@ class TenX:
                 adata_filename = f"{sample_identifier}.h5ad"
                 adata_path = cache_directory_path / adata_filename
                 adata = sc.read_10x_mtx(path=sample_dir)
-                adata.uns['adata-filename'] = adata_filename
+                adata.obs['adata-filename'] = adata_filename
                 self.multiple_adata.append(adata)
                 if cache_directory:
                     L.info(f"...caching object.")
                     adata.write_h5ad(adata_path)
             else:
                 L.warning(f"Skipping {sample_identifier}, unable to determine target paths for {missing_targets[sample_identifier]}")
+
+        for file in skipped_files:
+            L.info(f"Loading cached object from file {file}")
+            adata = sc.read_h5ad(file)
+            adata.obs['adata-filename'] = file.name
+            self.multiple_adata.append(adata)
