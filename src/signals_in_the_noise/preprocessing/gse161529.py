@@ -213,6 +213,27 @@ class GSE161529(Preprocessor):
 
     @staticmethod
     def _apply_one(adata):
+        """
+        Applies the following annotations as observations (obs) to the AnnData object (IN PLACE modifications):
+
+        1. 'mt' = list of mitochondrial genes present (strings)
+        2. 'is_low_num_genes' = True (1) if 'n_genes_by_counts' is within the given threshold (int)
+        3. 'is_high_num_genes' = True (1) if 'n_genes_by_counts' is above the given threshold (int)
+        4. 'is_high_mito' = True (1) if 'pct_count_mt' is above the given threshold (int)
+        5. 'is_high_total_count' = True (1) if 'total_counts' is above the given threshold (int)
+        6. 'zero_genes' = True (1) if 'n_genes_by_count' is 0 (int)
+        7. 'zero_mito' = True (1) if 'pct_counts_mt' is 0 (int)
+        8. 'zero_count' = True (1) if 'total_counts' is 0 (int)
+        9. 'is_noise' = True (1) if any of annotatinos 2 - 5 are True (int)
+
+        The given threshold is provided by a spreadsheet and loaded into the uns field of the AnnData object.
+
+        Note: There are 3 files whose counts for "real" cells did not line up with the material provided by
+        the authors. These are whitelisted from the value check at the end.
+
+        :param adata: AnnData object o annotate
+        :return: None
+        """
         # Annotate mitochondrial genes before getting QC metrics
         adata.var['mt'] = adata.var_names.str.upper().str.startswith('MT-')
 
@@ -331,7 +352,16 @@ class GSE161529(Preprocessor):
 
         return adata.copy()
 
-    def _check_adata_for_genes(self, adata, genes_to_check):
+    def check_adata_for_genes(self, adata, genes_to_check):
+        """
+        Utility method to check if the given genes exist in the data set.
+
+        Check is case insensitive.
+
+        :param adata: AnnData
+        :param genes_to_check: list of strings that are gene names to check.
+        :return:
+        """
         var_names_lower = {name.lower(): name for name in adata.var_names}
         missing = []
         for gene in genes_to_check:
@@ -392,7 +422,7 @@ class GSE161529(Preprocessor):
                 for is_noise in (0, 1):
                     adata_subset = adata[adata.obs['is_noise'] == is_noise].copy()
                     if genes_to_check:
-                        missing = self._check_adata_for_genes(adata_subset, genes_to_check)
+                        missing = self.check_adata_for_genes(adata_subset, genes_to_check)
                         L.info(f"[before annotation] Sanity check genes missing ({len(missing)}) {', '.join(missing)}")
                     adata_subset = self._cache_combined_epithilial_gene_expression(adata_subset)
                     adata_subset = self.annotate_epithial_cell_typing(adata_subset, hvg_only=hvg_only)
@@ -405,7 +435,7 @@ class GSE161529(Preprocessor):
                         adata_subset = adata_subset[:, adata_subset.var['highly_variable']].copy()
 
                     if genes_to_check:
-                        missing = self._check_adata_for_genes(adata_subset, genes_to_check)
+                        missing = self.check_adata_for_genes(adata_subset, genes_to_check)
                         L.info(f"[after stromal filter], sanity check genes missing ({len(missing)}) {', '.join(missing)}")
 
                     # additional features for visualizations
