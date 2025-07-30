@@ -72,6 +72,7 @@ class TenX:
         for file in cache_directory.iterdir():
             L.info(f"Reading {file} as AnnData object.")
             adata = sc.read_h5ad(file)
+            adata.uns['adata-filename'] = file.name
             self.multiple_adata.append(adata)
 
     def load_data(self, *, cache=True):
