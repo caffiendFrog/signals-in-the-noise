@@ -221,10 +221,11 @@ class GSE161529(Preprocessor):
         3. 'is_high_num_genes' = True (1) if 'n_genes_by_counts' is above the given threshold (int)
         4. 'is_high_mito' = True (1) if 'pct_count_mt' is above the given threshold (int)
         5. 'is_high_total_count' = True (1) if 'total_counts' is above the given threshold (int)
-        6. 'zero_genes' = True (1) if 'n_genes_by_count' is 0 (int)
-        7. 'zero_mito' = True (1) if 'pct_counts_mt' is 0 (int)
-        8. 'zero_count' = True (1) if 'total_counts' is 0 (int)
-        9. 'is_noise' = True (1) if any of annotatinos 2 - 5 are True (int)
+        6. 'is_noise' = True (1) if any of annotatinos 2 - 5 are True (int)
+        7. 'zero_genes' = True (1) if 'n_genes_by_count' is 0 (int)
+        8. 'zero_mito' = True (1) if 'pct_counts_mt' is 0 (int)
+        9. 'zero_count' = True (1) if 'total_counts' is 0 (int)
+        10. raw gene expression of selected genes
 
         The given threshold is provided by a spreadsheet and loaded into the uns field of the AnnData object.
 
@@ -236,6 +237,7 @@ class GSE161529(Preprocessor):
         """
         # Annotate mitochondrial genes before getting QC metrics
         adata.var['mt'] = adata.var_names.str.upper().str.startswith('MT-')
+        # adata.obs['mt'] = list(adata.var['mt'])
 
         # Use scanpy to calculate the QC metrics
         sc.pp.calculate_qc_metrics(adata, qc_vars=['mt'], inplace=True)
@@ -245,11 +247,6 @@ class GSE161529(Preprocessor):
         adata.obs['is_high_num_genes'] = (adata.obs['n_genes_by_counts'] > adata.uns['qc_genes_upper']).astype(int)
         adata.obs['is_high_mito'] = (adata.obs['pct_counts_mt'] / 100 > adata.uns['qc_mito_upper']).astype(int)
         adata.obs['is_high_total_count'] = (adata.obs['total_counts'] >= adata.uns['qc_total_upper']).astype(int)
-
-        # Additional features while we're here
-        adata.obs['zero_genes'] = (adata.obs['n_genes_by_counts'] == 0).astype(int)
-        adata.obs['zero_mito'] = (adata.obs['pct_counts_mt'] == 0).astype(int)
-        adata.obs['zero_count'] = (adata.obs['total_counts'] == 0).astype(int)
 
         # Identify observation as noise
         adata.obs['is_noise'] = (
@@ -265,6 +262,21 @@ class GSE161529(Preprocessor):
         if not bool(actual_count == expected_count) and not (adata.obs['adata-filename'].iloc[0] in GSE161529.EXPECTED_MISMATCHES):
             raise ValueError(f"Check failed! Expected {expected_count} but got {actual_count}.")
 
+        # Additional features while we're here
+        adata.obs['zero_genes'] = (adata.obs['n_genes_by_counts'] == 0).astype(int)
+        adata.obs['zero_mito'] = (adata.obs['pct_counts_mt'] == 0).astype(int)
+        adata.obs['zero_count'] = (adata.obs['total_counts'] == 0).astype(int)
+
+        # # Cache raw gene expression for selected genes
+        # genes_to_cache = []
+        # for selected_genes in (
+        #     self.G2M_CHECKPOINT_GENES,
+        #     self.E2F_REGULATION_GENES,
+        #     self.DDR_GENES,
+        #     self.UPR_GENES,
+        # ):
+        #     genes_to_cache.extend(list(selected_genes.values()))
+        # self.cache_raw_gene_expression(adata, genes_to_cache, in_place=True)
 
     @staticmethod
     def _prepare_resources_for_annotation(resources):
@@ -352,54 +364,7 @@ class GSE161529(Preprocessor):
 
         return adata.copy()
 
-    def check_adata_for_genes(self, adata, genes_to_check):
-        """
-        Utility method to check if the given genes exist in the data set.
-
-        Check is case insensitive.
-
-        :param adata: AnnData
-        :param genes_to_check: list of strings that are gene names to check.
-        :return:
-        """
-        var_names_lower = {name.lower(): name for name in adata.var_names}
-        missing = []
-        for gene in genes_to_check:
-            if gene.lower() not in var_names_lower:
-                missing.append(gene)
-
-        return missing
-
-    def _cache_combined_epithilial_gene_expression(self, adata):
-        """
-        Store the gene expression for selected genes to reproduce figure 1h so that we
-        have the values after additional filtering has been done.
-        :param adata:
-        :return:
-        """
-        var_names_lower = {name.lower(): name for name in adata.var_names}
-        adata = adata.copy()
-
-        for genes_of_interest in [
-            self.EPI_CELL_TYPING_GENES,
-            # self.G2M_CHECKPOINT_GENES,
-            # self.E2F_REGULATION_GENES,
-            # self.DDR_GENES,
-            # self.UPR_GENES,
-        ]:
-            for obs_name, gene_name in genes_of_interest.items():
-                if gene_name.lower() in var_names_lower:
-                    gene_expression = adata[:, gene_name].X
-                    if not isinstance(gene_expression, np.ndarray):
-                        gene_expression = gene_expression.toarray()
-                    gene_expression = gene_expression.flatten()
-                else:
-                    gene_expression = np.zeros(adata.n_obs)
-
-                adata.obs[obs_name] = gene_expression
-
-        return adata
-
+    # instead of apply_tnse, change to tsne_kwargs. presence = True
     def get_combined_epithilial_dataset(self, *, hvg_only=True, hvg_post_stromal=False, apply_tsne=True, genes_to_check=None):
         all_real_filename = get_data_path("combined_epi_normal_real.h5ad")
         all_noise_filename = get_data_path("combined_epi_normal_noise.h5ad")
@@ -424,12 +389,12 @@ class GSE161529(Preprocessor):
                     if genes_to_check:
                         missing = self.check_adata_for_genes(adata_subset, genes_to_check)
                         L.info(f"[before annotation] Sanity check genes missing ({len(missing)}) {', '.join(missing)}")
-                    adata_subset = self._cache_combined_epithilial_gene_expression(adata_subset)
-                    adata_subset = self.annotate_epithial_cell_typing(adata_subset, hvg_only=hvg_only)
+                    adata_subset = self.cache_raw_gene_expression(adata_subset, self.EPI_CELL_TYPING_GENES)
+                    adata_subset = self.annotate_epithial_cell_typing(adata_subset, hvg_only=False)
                     # remove stromal cells - "...removed the stromal subset..."
                     mask = ~adata_subset.obs['predicted_type'].str.lower().str.contains('stromal')
                     adata_subset = adata_subset[mask].copy()
-                    if hvg_only and hvg_post_stromal:
+                    if hvg_only or hvg_post_stromal:
                         sc.pp.highly_variable_genes(adata_subset)
                         adata_subset.raw = adata_subset.copy()
                         adata_subset = adata_subset[:, adata_subset.var['highly_variable']].copy()
@@ -457,15 +422,18 @@ class GSE161529(Preprocessor):
             adatas_all_real = ad.concat(adatas_real, join='inner')
             adatas_all_noise = ad.concat(adatas_noise, join='inner')
 
+            real_pca_kwargs = None
+            noise_pca_kwargs = None
             if apply_tsne and hvg_post_stromal:
-                # reduce dimensions
-                self.apply_tsne(adatas_all_real, n_comps=20)
-                self.apply_tsne(adatas_all_noise, n_comps=4)
+                real_pca_kwargs = {'n_comps': 20}
+                noise_pca_kwargs = {'n_comps': 4}
 
-            if apply_tsne and not hvg_post_stromal:
-                # reduce dimensions
-                self.apply_tsne(adatas_all_real)
-                self.apply_tsne(adatas_all_noise)
+            for adata, pca_kwargs in (
+                (adatas_all_real, real_pca_kwargs),
+                (adatas_all_noise, noise_pca_kwargs),
+            ):
+                self.find_clusters(adata, pca_kwargs=pca_kwargs)
+                self.calculate_tsne(adata)
 
             # write out the combined datasets
             adatas_all_real.write(all_real_filename)
@@ -473,45 +441,88 @@ class GSE161529(Preprocessor):
 
         return adatas_all_real, adatas_all_noise
 
-    def apply_tsne(self, adata, *, use_leiden=True, resolution=0.015, n_neighbors=15, n_comps=50, n_pcs=None):
+    def find_clusters(self, adata, *, use_leiden=True, pca_kwargs=None, neighbors_kwargs=None, cluster_kwargs=None):
         """
+        Find clusters in the dataset.
 
-        :param adata:
-        :param use_leiden: True to use leiden, False to use louvain
-        :param resolution: default value specified in paper
-        :param n_neighbors: default value specified by scanpy docs
-        :param n_pcs: default value specified by scanpy docs
+        The default parameter values for the clustering algorithm are:
+        * resolution = 0.015 (from article)
+        * n_neighbors = 15
+        * n_comps = 50
+
+        Paramters can be customized by providing one of the kwargs
+
+        Note: n_comps & n_pcs have been explicitly set for determinism.
+
+        :param adata: AnnData object (IN PLACE modification)
+        :param use_leiden: True to use Leiden algorithm, False to use Louvain algorithm
+        :param pca_kwargs: dictionary of kwargs to pass to the PCA method
+        :param neighbors_kwargs: dictionary of kwargs to pass to the neighbors method
+        :param cluster_kwargs: dictionary of kwargs to pass to the clustering algorithm
         :return:
         """
         sc.pp.scale(adata)
-        # -- for determinism, specify n_comps/n_pcs
-        sc.pp.pca(adata, n_comps=n_comps, random_state=self.random_seed)
-        sc.pp.neighbors(adata, n_pcs=n_pcs, n_neighbors=n_neighbors, **self.random_kwargs)
+
+        default_pca_parameters = {
+            'n_comps': 50,
+            'random_state': self.random_seed,
+        }
+        if pca_kwargs:
+            default_pca_parameters.update(pca_kwargs)
+        sc.pp.pca(adata, **default_pca_parameters)
+
+        default_neighbors_parameters = {
+            'n_neighbors': 15,
+            'n_pcs': None,
+        }
+        default_neighbors_parameters.update(self.random_kwargs)
+        if neighbors_kwargs:
+            default_neighbors_parameters.update(neighbors_kwargs)
+        sc.pp.neighbors(adata, **default_neighbors_parameters)
+
+        default_cluster_parameters = {
+            'resolution': 0.015,
+            'random_state': self.random_seed,
+        }
+        if cluster_kwargs:
+            default_cluster_parameters.update(cluster_kwargs)
         if use_leiden:
-            sc.tl.leiden(adata, resolution=resolution, random_state=self.random_seed)
+            sc.tl.leiden(adata, **default_cluster_parameters)
         else:
-            sc.tl.louvain(adata, resolution=resolution, random_state=self.random_seed)
-        # -- for finer control on determinism, manually configure TSNE
-        tsne = TSNE(
-            random_state=self.random_seed,
-            # -- for determinism, set initialization to PCA
-            initialization='pca',
-            # -- for determinism, use a single thread
-            n_jobs=1,
-            # -- use the default values scanpy uses
-            n_iter=1000,
-            learning_rate=200,
-        )
+            sc.tl.louvain(adata, **default_cluster_parameters)
+
+    def calculate_tsne(self, adata, *, tsne_kwargs=None):
+        """
+        Calculates low dimensional embeddings of the data.
+
+        Intentionally configuring TSNE manually rather than using scanpy for finer controls.
+
+        :param adata: AnnData object (IN PLACE modification)
+        :param tsne_kwargs: dictionary of kwargs to pass to the TSNE
+        :return:
+        """
+        default_tsne_kwargs = {
+            'random_state': self.random_seed,
+            'initialization': 'pca',
+            'n_jobs': 1,  # single thread for determinism
+            'n_iter': 1000,  # default value scanpy uses
+            'learning_rate': 200,  # default value scanpy uses
+        }
+        if tsne_kwargs:
+            default_tsne_kwargs.update(tsne_kwargs)
+        tsne = TSNE(**default_tsne_kwargs)
         # -- for determinism, round the value to guard against floating point noise
         X_pca = adata.obsm['X_pca']
         X_embedding = tsne.fit(np.round(X_pca, decimals=10))
         adata.obsm['X_tsne'] = np.asarray(X_embedding)
 
     def visualize_tsne(self, adata, color, *, use_raw=False, plot_kwargs=None):
+        default_plot_kwargs = {
+            'color': color,
+            'use_raw': use_raw,
+        }
         if plot_kwargs:
+            default_plot_kwargs.update(plot_kwargs)
             kwargs = plot_kwargs.copy()
-            kwargs['color'] = color
-            kwargs['use_raw'] = use_raw
-            sc.pl.tsne(adata, **kwargs)
-        else:
-            sc.pl.tsne(adata, color=color, use_raw=use_raw)
+
+        sc.pl.tsne(adata, **default_plot_kwargs)
