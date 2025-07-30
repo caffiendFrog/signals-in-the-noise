@@ -115,6 +115,53 @@ class Preprocessor:
             self.random_kwargs['random_state'] = random.randint(1, 100)
         return self.random_kwargs.get('random_state', None)
 
+    def cache_raw_gene_expression(self, adata, genes_of_interest, *, in_place=False):
+        """
+        Store the raw gene expression for selected genes before downstream analysis and
+        dimensionality reduction filters them out of the dataset.
+
+        :param adata: AnnData
+        :param genes_of_interest: list of genes
+        :param in_place: True to modify in place (e.g. don't make a copy of the given adata)
+        :return: AnnData
+        """
+        var_names_lower = {name.lower(): name for name in adata.var_names}
+        if not in_place:
+            adata = adata.copy()
+
+        for obs_name, gene_name in genes_of_interest.items():
+            if gene_name.lower() in var_names_lower:
+                gene_expression = adata[:, gene_name].X
+                if not isinstance(gene_expression, np.ndarray):
+                    gene_expression = gene_expression.toarray()
+                gene_expression = gene_expression.flatten()
+            else:
+                gene_expression = np.zeros(adata.n_obs)
+
+            adata.obs[obs_name] = gene_expression
+
+        return adata
+
+    def check_adata_for_genes(self, adata, genes_to_check):
+        """
+        Utility method to check if the given genes exist in the data set.
+
+        Check is case insensitive.
+
+        :param adata: AnnData
+        :param genes_to_check: list of strings that are gene names to check.
+        :return:
+        """
+        var_names_lower = {name.lower(): name for name in adata.var_names}
+        missing = []
+        for gene in genes_to_check:
+            if gene.lower() not in var_names_lower:
+                missing.append(gene)
+
+        if missing:
+            L.info(f"{len(missing)} missing out of {len(genes_to_check)}")
+        return missing
+
     def score_gene_signature_expression(
             self,
             adata: AnnData,
