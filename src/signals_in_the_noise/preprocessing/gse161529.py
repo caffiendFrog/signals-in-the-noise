@@ -364,8 +364,26 @@ class GSE161529(Preprocessor):
 
         return adata.copy()
 
-    # instead of apply_tnse, change to tsne_kwargs. presence = True
-    def get_combined_epithilial_dataset(self, *, hvg_only=True, hvg_post_stromal=False, apply_tsne=True, genes_to_check=None):
+    def get_combined_epithilial_dataset(
+            self,
+            *,
+            hvg_post_stromal: bool = False,
+            genes_to_check: list = None,
+            real_pca_kwargs: dict = None,
+            noise_pca_kwargs: dict = None,
+    ):
+        """
+        Recreates the combined epitihilial dataset used by the authors for their Figure 1 visualizations.
+
+        Two separate paramters provided to customize the clustering done on the "real" and "noise" cells given
+        that they have very different data characteristics (number of cells, number of genes, etc.).
+
+        :param hvg_post_stromal: True to re-filter down to highly variable genes after filtering out stromal cells
+        :param genes_to_check: Optional list of genes to check for presence of, produces statements in conosle
+        :param real_pca_kwargs: kwargs to use for clustering on the "real" cells
+        :param noise_pca_kwargs: kwargs to use for clustering on the "noise" cells
+        :return:
+        """
         all_real_filename = get_data_path("combined_epi_normal_real.h5ad")
         all_noise_filename = get_data_path("combined_epi_normal_noise.h5ad")
 
@@ -394,7 +412,7 @@ class GSE161529(Preprocessor):
                     # remove stromal cells - "...removed the stromal subset..."
                     mask = ~adata_subset.obs['predicted_type'].str.lower().str.contains('stromal')
                     adata_subset = adata_subset[mask].copy()
-                    if hvg_only or hvg_post_stromal:
+                    if hvg_post_stromal:
                         sc.pp.highly_variable_genes(adata_subset)
                         adata_subset.raw = adata_subset.copy()
                         adata_subset = adata_subset[:, adata_subset.var['highly_variable']].copy()
@@ -422,18 +440,16 @@ class GSE161529(Preprocessor):
             adatas_all_real = ad.concat(adatas_real, join='inner')
             adatas_all_noise = ad.concat(adatas_noise, join='inner')
 
-            real_pca_kwargs = None
-            noise_pca_kwargs = None
-            if apply_tsne and hvg_post_stromal:
-                real_pca_kwargs = {'n_comps': 20}
-                noise_pca_kwargs = {'n_comps': 4}
-
-            for adata, pca_kwargs in (
-                (adatas_all_real, real_pca_kwargs),
-                (adatas_all_noise, noise_pca_kwargs),
-            ):
-                self.find_clusters(adata, pca_kwargs=pca_kwargs)
-                self.calculate_tsne(adata)
+            if all([
+                real_pca_kwargs is not None,
+                noise_pca_kwargs is not None,
+            ]):
+                for adata, pca_kwargs in (
+                    (adatas_all_real, real_pca_kwargs),
+                    (adatas_all_noise, noise_pca_kwargs),
+                ):
+                    self.find_clusters(adata, pca_kwargs=pca_kwargs)
+                    self.calculate_tsne(adata)
 
             # write out the combined datasets
             adatas_all_real.write(all_real_filename)
