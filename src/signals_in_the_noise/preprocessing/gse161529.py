@@ -367,6 +367,7 @@ class GSE161529(Preprocessor):
     def get_combined_epithilial_dataset(
             self,
             *,
+            use_leiden: bool = True,
             hvg_post_stromal: bool = False,
             genes_to_check: list = None,
             real_pca_kwargs: dict = None,
@@ -448,7 +449,7 @@ class GSE161529(Preprocessor):
                     (adatas_all_real, real_pca_kwargs),
                     (adatas_all_noise, noise_pca_kwargs),
                 ):
-                    self.find_clusters(adata, pca_kwargs=pca_kwargs)
+                    self.find_clusters(adata, use_leiden=use_leiden, pca_kwargs=pca_kwargs)
                     self.calculate_tsne(adata)
 
             # write out the combined datasets
@@ -477,6 +478,10 @@ class GSE161529(Preprocessor):
         :param cluster_kwargs: dictionary of kwargs to pass to the clustering algorithm
         :return:
         """
+        if not use_leiden:
+            L.warning('Packages for louvain have not been configured or installed. Switching to leiden.')
+            use_leiden = True
+
         sc.pp.scale(adata)
 
         default_pca_parameters = {
