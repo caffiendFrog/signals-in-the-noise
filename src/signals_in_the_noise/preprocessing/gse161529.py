@@ -367,7 +367,10 @@ class GSE161529(Preprocessor):
     def get_combined_epithilial_dataset(
             self,
             *,
+            real_filename: str = "combined_epi_normal_real.h5ad",
+            noise_filename: str = "combined_epi_normal_noise.h5ad",
             use_leiden: bool = True,
+            remove_stromal: bool = True,
             hvg_post_stromal: bool = False,
             genes_to_check: list = None,
             real_pca_kwargs: dict = None,
@@ -379,14 +382,19 @@ class GSE161529(Preprocessor):
         Two separate paramters provided to customize the clustering done on the "real" and "noise" cells given
         that they have very different data characteristics (number of cells, number of genes, etc.).
 
+        :param use_leiden: True to use the leiden algorithm for clustering. Currently the only option installed.
+            To use louvain algorithm, first install it and its dependencies (including cmake). Then modify
+            `find_clusters` to remove the forcing to True.
+        :param remove_stromal: True to remove stromal typed cells from the combined dataset.
         :param hvg_post_stromal: True to re-filter down to highly variable genes after filtering out stromal cells
+            Does nothing if remove_stromal is False.
         :param genes_to_check: Optional list of genes to check for presence of, produces statements in conosle
         :param real_pca_kwargs: kwargs to use for clustering on the "real" cells
         :param noise_pca_kwargs: kwargs to use for clustering on the "noise" cells
         :return:
         """
-        all_real_filename = get_data_path("combined_epi_normal_real.h5ad")
-        all_noise_filename = get_data_path("combined_epi_normal_noise.h5ad")
+        all_real_filename = get_data_path(real_filename)
+        all_noise_filename = get_data_path(noise_filename)
 
         all_real_path = Path(all_real_filename)
         all_noise_path = Path(all_noise_filename)
@@ -410,17 +418,20 @@ class GSE161529(Preprocessor):
                         L.info(f"[before annotation] Sanity check genes missing ({len(missing)}) {', '.join(missing)}")
                     adata_subset = self.cache_raw_gene_expression(adata_subset, self.EPI_CELL_TYPING_GENES)
                     adata_subset = self.annotate_epithial_cell_typing(adata_subset, hvg_only=False)
-                    # remove stromal cells - "...removed the stromal subset..."
-                    mask = ~adata_subset.obs['predicted_type'].str.lower().str.contains('stromal')
-                    adata_subset = adata_subset[mask].copy()
-                    if hvg_post_stromal:
-                        sc.pp.highly_variable_genes(adata_subset)
-                        adata_subset.raw = adata_subset.copy()
-                        adata_subset = adata_subset[:, adata_subset.var['highly_variable']].copy()
+                    if remove_stromal:
+                        # remove stromal cells - "...removed the stromal subset..."
+                        mask = ~adata_subset.obs['predicted_type'].str.lower().str.contains('stromal')
+                        adata_subset = adata_subset[mask].copy()
+                        if hvg_post_stromal:
+                            sc.pp.highly_variable_genes(adata_subset)
+                            adata_subset.raw = adata_subset.copy()
+                            adata_subset = adata_subset[:, adata_subset.var['highly_variable']].copy()
 
-                    if genes_to_check:
-                        missing = self.check_adata_for_genes(adata_subset, genes_to_check)
-                        L.info(f"[after stromal filter], sanity check genes missing ({len(missing)}) {', '.join(missing)}")
+                        if genes_to_check:
+                            missing = self.check_adata_for_genes(adata_subset, genes_to_check)
+                            L.info(f"[after stromal filter], sanity check genes missing ({len(missing)}) {', '.join(missing)}")
+                    else:
+                        adata_subset.raw = adata_subset.copy()
 
                     # additional features for visualizations
                     adata_subset.obs['specimen_id'] = specimen_id
