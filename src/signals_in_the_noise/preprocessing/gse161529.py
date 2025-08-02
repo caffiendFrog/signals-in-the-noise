@@ -129,6 +129,13 @@ class GSE161529(Preprocessor):
         if not self.is_annotations_applied:
             self._apply_annotations()
 
+        # combine the genes of interest for later use in visualizations
+        self.tumor_proliferation_genes = list(self.G2M_CHECKPOINT_GENES.values())
+        self.tumor_proliferation_genes.extend(list(self.E2F_REGULATION_GENES.values()))
+
+        self.chemo_resistance_genes = list(self.DDR_GENES.values())
+        self.chemo_resistance_genes.extend(list(self.UPR_GENES.values()))
+
     def _load_annotations(self):
         """
         Adds annotations from resource tables to the anndata objects for the raw data.
