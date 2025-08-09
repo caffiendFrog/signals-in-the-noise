@@ -175,7 +175,12 @@ class Preprocessor:
         """
         Scores the given dataset for the gene signatures.
 
-        Currently only supports signature files in excel and formatted for gse161529
+        Currently only supports signature files in excel and formatted for the supplementary files provided in:
+            Lim E, Vaillant F, Wu D, Forrest NC, Pal B, Hart AH, Asselin-Labat ML, Gyorki DE, Ward T, Partanen A,
+            Feleppa F, Huschtscha LI, Thorne HJ, Fox SB, Yan M, French JD, Brown MA, Smyth GK, Visvader JE,
+            Lindeman GJ, kConFab. Aberrant luminal progenitors as the candidate target population for basal tumor
+            development in BRCA1 mutation carriers. Nature medicine. New York: Nature Publishing Group US;
+            2009;15(8):907–913.
 
         :param adata: AnnData object to score for gene expression
         :param gene_signature_filenames: gene name to its expression signature filename
@@ -199,9 +204,21 @@ class Preprocessor:
         for gene_signature, filename in gene_signature_filenames.items():
             # read gene signature from excel file
             signature_df = pd.read_excel(get_resources_path(self.STUDY_ID + '/' + filename))
-            genes = signature_df.loc[:, 'Symbol'].dropna().unique().tolist()
-            # only return the genes that exist in target dataset
-            actual_genes = [gene for gene in genes if gene in adata.var_names]
-            sc.tl.score_genes(adata, gene_list=actual_genes, score_name=f'score_{gene_signature}', random_state=43)
+            # drop any nas
+            signature_df = signature_df.loc[:, ['Symbol', 'Average log fold-change']].dropna()
+            # separate the upregulated genes from downregulated
+            upregulated_genes = signature_df.loc[signature_df['Average log fold-change'] >= 0, 'Symbol'].unique().tolist()
+            downregulated_genes = signature_df.loc[signature_df['Average log fold-change'] < 0, 'Symbol'].unique().tolist()
+            # only score the genes that exist in target dataset
+            actual_up_genes = [gene for gene in upregulated_genes if gene in adata.var_names]
+            actual_down_genes = [gene for gene in downregulated_genes if gene in adata.var_names]
+            # actual score is the difference between the upregulated and downregulated gene scores
+            # - score_genes assumes all genes are positive contributors, they must be scored separately
+            # - this penalizes conflicting signals (cells expressing both up & down regulated genes for the signature)
+            sc.tl.score_genes(adata, gene_list=actual_up_genes, score_name='up_score', random_state=self.random_seed)
+            sc.tl.score_genes(adata, gene_list=actual_down_genes, score_name='down_score', random_state=self.random_seed)
+            adata.obs[f'score_{gene_signature}'] = adata.obs['up_score'] - adata.obs['down_score']
+            # clean up
+            adata.obs.drop(columns=['up_score', 'down_score'], inplace=True)
 
         return adata
