@@ -6,25 +6,42 @@
 ## Contents
 * [Overview](#overview)
   * [Motivation](#motivation) 
+  * [Objective](#objective)
 * [Getting Started](#getting-started)
   * [Repository Structure](#repository-structure) 
   * [Running Jupyter Notebooks](#running-jupyter-notebooks)
 * [References](#references)
 
-## Overview
-Understanding the biological significance of low RNA profile cells in tumors has lagged behind advances in single-cell RNA sequencing (scRNA-seq). While technologies have enabled detailed characterization of tumor ecosystems [1,2], cells exhibiting low overall RNA counts have often been treated as technical artifacts and excluded from analyses [3]. This approach risks overlooking rare or quiescent cell states that may hold critical biological importance, particularly in understanding cancer dormancy and resistance [4, 5]
+## Introduction
+Single-cell RNA sequencing (scRNA-seq) has played a pivotal role in advancing the understanding of biology by enabling researchers to measure gene expression at the resolution of individual cells. Through scRNA-seq analyses, researchers have created comprehensive cell atlases and identified rare and/or previously unrecognized cellular subpopulations. Unlike bulk RNA sequencing (bulk RNA-seq), which uses whole tissue or or bulk-sorted cells as inputs,  scRNA-seq further breaks down the tissue samples into individual cells as inputs [1].
 
-We hypothesize that low RNA profile cells are not merely technical noise but instead have biological significance.
-
-To that end, we leverage the supplementary data to recreate the preprocessing the authors performed. Specifically, we will annotate the sequencing data with a boolean flag indicating if the cell was considered a technical artifact (noise) or not.
+A necessary byproduct of this level of resolution is a dramatic increase in the number of observations, often by 3 to 4 orders of magnitude, resulting in significantly more data for downstream analysis. Another challenge is that the process of tagging mRNA may incorrectly tag mRNA from multiple cells with the same barcode or fail to tag anything at all. These two challenges highlight the importance of verifying the quality of the reads and filtering out noise. This is commonly done by calculating metrics such as total number of genes, percentage of genes that are for mitochondria, and total number of barcodes (cells) that contain a gene. Thresholds are then determined for the dataset and cells that fall outside the threshold are filtered out from further analysis [2].
 
 _[Back to Top](#contents)_
 
 ### Motivation
-When preparing data for use, there are assumptions about what is considered viable (“good”) and not viable (“noise”) data. Throughout the coursework here, the examples have been grounded in well understood domains, and so the assumptions are fairly sound. For example, if a large dataset has timestamps, and we know the time frame the data was collected, it is clear that data points with timestamps outside the timeframe are incorrect. When I began researching single cell RNA sequencing data, one thing that stood out to me were the assumptions used for preparing the data. Standard operating procedures have various guidelines that are followed to determine the viability of the sequencing data for a cell, attributing non-viability to technical challenges. Some of these include, if there is no expression at all (empty cell), too many genes detected (doublet), too few genes detected (ambient), to name a few. It struck me as hubris to assume that our understanding of biology is sufficient to make these assumptions. While I do understand that it may be necessary to analyze the two cell populations separately, for example examining all of them together dilutes any signals and reduces the diagnostic efficacy, completely throwing away the data points feels wrong. I don’t believe anyone has done a rigorous analysis of these data points. When doing research for the causal analysis earlier this year, I came across a review [6] discussing the DNA damage response with respect to the resistance of cancer stem cells. As I read about the DNA damage response (DDR), it occurred to me that it is a kind of biological quality control system. It identifies cells that are not viable and attempts to repair them. From the discussion in the review: “Increased DDR may reflect poor clinical outcome in certain categories of patients..” and “... in other groups of patients somatic DDR alteration is associated with improved clinical outcomes..”. In other words, cells that are deemed not viable (e.g. need to be repaired) may have diagnostic importance. This is my motivation for performing an analysis on the sequencing data that would normally be considered not viable and filtered out from downstream analyses.
+This project is motivated by the causal ambiguity of identifying thresholds for quality control (QC) metrics in the pre-processing workflow. Specifically, thresholds for scRNA-seq are set using biological assumptions, while those same or related assumptions are being evaluated by scRNA-seq. One such biological assumption is that cells with higher total RNA are metabolically healthy. As a result, the QC process often prioritizes these cells, while treating cells with low total RNA counts as technical artifacts to be filtered out [3, 4]. This approach, while effective for minimizing noise from ambient RNA contamination, risks eliminating biologically meaningful signals. 
+
+| Feature to Threshold      | Filtered by QC Metric | Targeted by DDR | Dormant Cells                 |
+|---------------------------|------------------------|-----------------|-------------------------------|
+| Low total RNA content     | ✅ Damaged cell        | ⚠️ Depends      | ✅ Viable but quiet cell       |
+| High total RNA content    | ✅ Degraded cell       | ⚠️ Depends      | ✅ Limited active gene expression |
+| Low number of genes       | ✅ Technical artifact  | ⚠️ Depends      | ✅ Limited active gene expression |
+| Low mitochondrial RNA %   | ❌ Not filtered out    | ✅ Damaged cell  | ✅ Limited energy needs        |
+| High mitochondrial RNA %  | ✅ Damaged cell        | ✅ Damaged cell  | ❌ Not dormant                 |
+
+*Table 1. Summary of QC metric thresholds and how they correspond to different kinds of cells.*
+
+**Legend:** ✅ characteristic • ❌ not a characteristic • ⚠️ might be a characteristic (context-dependent)
 
 _[Back to Top](#contents)_
 
+### Objective
+The goal of this study is to perform a comparative scRNA-seq analysis of cells classified as biological signals (“real”) versus those labeled as technical artifacts (“noise”), with the aim of evaluating whether current QC processes systematically exclude potentially informative cellular states.
+
+This repository contains the framework used to perform comparative analysis.
+
+_[Back to Top](#contents)_
 ## Getting Started
 1. Prerequisites
    * Python 3.12 or higher
@@ -65,17 +82,18 @@ _[Back to Top](#contents)_
     ```bash
         python .\bin\download_datasets.py
     ```
-   * We will be using [GSE161529](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE161529) [7, 8]. The datasets are prohibitively large to store in GitHub. Datasets can be downloaded directly from the Gene Expression Omnibus (GEO) or by using the provided python script which will download the files to the `assets` directory and expand the `tar` file for the patient samples. Using the python script will ensure compatibility with the rest of the downstream workflow (e.g. file naming conventions and locations).
+   * We will be using [GSE161529](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE161529) [5, 6]. The datasets are prohibitively large to store in GitHub. Datasets can be downloaded directly from the Gene Expression Omnibus (GEO) or by using the provided python script which will download the files to the `assets` directory and expand the `tar` file for the patient samples. Using the python script will ensure compatibility with the rest of the downstream workflow (e.g. file naming conventions and locations).
 
 _[Back to Top](#contents)_
 
 ### Repository Structure
 
 * `bin`
-  * Contains various scripts
+  * Scripts to install dependencies and download datasets
 * `data`
   * Data in various stages of preprocessing
-  * Recommended to mark this directory as excluded from indexing in IDE.
+  * Marked as `.gitignore` due to the size of data
+  * Recommended to mark this directory as excluded from indexing in IDE
 * `images`
   * Images used in documentation 
 * `notebook`
@@ -83,8 +101,11 @@ _[Back to Top](#contents)_
 * `resources`
   * Additonal resources for the data
   * Recommended to mark this directory as excluded from indexing in IDE.
-* `src`
-  * Source directory
+* `src\signals_in_the-noise`
+  * `preprocessing`
+    * Source code for preprocessing data.
+  * `utilities`
+    * Source code for utility functions
 
 _[Back to Top](#contents)_
 
@@ -99,13 +120,11 @@ Jupyter notebooks must be started within the virtual environment.
 _[Back to Top](#contents)_
 
 ## References
-1. Han, Ya, Wang, Yuting, Dong, Xin, Sun, Dongqing, Liu, Zhaoyang, Yue, Jiali, Wang, Haiyun, Li, Taiwen, Wang, Chenfei. TISCH2: expanded datasets and new tools for single-cell transcriptome analyses of the tumor microenvironment. Nucleic acids research. England: Oxford University Press; 2023;51(D1):D1425–D1431.
-2. Sun, Dongqing, Wang, Jin, Han, Ya, Dong, Xin, Ge, Jun, Zheng, Rongbin, Shi, Xiaoying, Wang, Binbin, Li, Ziyi, Ren, Pengfei, Sun, Liangdong, Yan, Yilv, Zhang, Peng, Zhang, Fan, Li, Taiwen, Wang, Chenfei. TISCH: a comprehensive web resource enabling interactive single-cell transcriptome visualization of tumor microenvironment. Nucleic acids research. England: Oxford University Press; 2021;49(D1):D1420–D1430.
+1. Lafzi A, Moutinho C, Picelli S, Heyn H. Tutorial: guidelines for the experimental design of single-cell RNA sequencing studies. Nature protocols. London: Nature Publishing Group UK; 2018;13(12):2742–2757.
+2. Luecken MD, Theis FJ. Current best practices in single‐cell RNA‐seq analysis: a tutorial. Molecular systems biology. London: Nature Publishing Group UK; 2019;15(6):e8746-n/a.
 3. Young, Matthew D, Behjati, Sam. SoupX removes ambient RNA contamination from droplet-based single-cell RNA sequencing data. Gigascience. United States: Oxford University Press; 2020;9(12).
-4. Lindell, Emma, Zhong, Lei, Zhang, Xiaonan. Quiescent Cancer Cells-A Potential Therapeutic Target to Overcome Tumor Resistance and Relapse. International journal of molecular sciences. Switzerland: MDPI AG; 2023;24(4):3762-.
-5. Yeh, Albert C, Ramaswamy, Sridhar. Mechanisms of Cancer Cell Dormancy--Another Hallmark of Cancer? Cancer research (Chicago, Ill). United States; 2015;75(23):5014–5022.
-6. Abad, Etna, Graifer, Dmitry, Lyakhovich, Alex. DNA damage response and resistance of cancer stem cells. Cancer letters. Ireland: Elsevier B.V; 2020;474:106–117. 
-7. Pal B, Chen Y, Vaillant F, Capaldo BD et al. A single-cell RNA expression atlas of normal, preneoplastic and tumorigenic states in the human breast. EMBO J 2021 Jun 1;40(11):e107333 
-8. Chen Y, Pal B, Lindeman GJ, Visvader JE et al. R code and downstream analysis objects for the scRNA-seq atlas of normal and tumorigenic human breast tissue. Sci Data 2022 Mar 23;9(1):96.
+4. Cheng, Sophia K. Signals in the Noise: Uncovering the Biological Signatures of Ghost Cell Profiles in Human Breast Cancer. Dec 2025. Data Science for Social Good, University of Michigan, student paper. 
+5. Yeh, Albert C, Ramaswamy, Sridhar. Mechanisms of Cancer Cell Dormancy--Another Hallmark of Cancer? Cancer research (Chicago, Ill). United States; 2015;75(23):5014–5022. 
+6. Abad, Etna, Graifer, Dmitry, Lyakhovich, Alex. DNA damage response and resistance of cancer stem cells. Cancer letters. Ireland: Elsevier B.V; 2020;474:106–117.
 
 _[Back to Top](#contents)_
