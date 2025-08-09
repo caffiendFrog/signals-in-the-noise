@@ -11,7 +11,7 @@ from openTSNE import TSNE
 from scipy import sparse
 from slugify import slugify
 
-from signals_in_the_noise.preprocessing.prep_config import Preprocessor
+from signals_in_the_noise.preprocessing.preprocessor import Preprocessor
 from signals_in_the_noise.utilities.logging import get_logger
 from signals_in_the_noise.utilities.storage import get_data_path, get_resources_path
 from signals_in_the_noise.utilities.tenx_genomics import TenX, DirectoryType
