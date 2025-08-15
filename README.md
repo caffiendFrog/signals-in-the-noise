@@ -82,7 +82,9 @@ _[Back to Top](#contents)_
     ```bash
         python .\bin\download_datasets.py
     ```
-   * We will be using [GSE161529](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE161529) [5, 6]. The datasets are prohibitively large to store in GitHub. Datasets can be downloaded directly from the Gene Expression Omnibus (GEO) or by using the provided python script which will download the files to the `assets` directory and expand the `tar` file for the patient samples. Using the python script will ensure compatibility with the rest of the downstream workflow (e.g. file naming conventions and locations).
+   * We will be using [GSE161529](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE161529) [5, 6]. The datasets are prohibitively large to store in GitHub. Datasets can be downloaded directly from the Gene Expression Omnibus (GEO) or by using the provided python script which will download the files to the `assets` directory and expand the `tar` file for the patient samples. The authors provide the following statement about the data:
+     * > “Processed scRNA‐seq and bulk RNA‐seq data generated for this study are available as GEO series GSE161529 and GSE161892, respectively. Raw data are available on request, subject to approval by our institutional Data Access Committee (dataaccess@wehi.edu.au) to ensure preservation of patient confidentiality.”
+   * Using the python script will ensure compatibility with the rest of the downstream workflow (e.g. file naming conventions and locations).
 
 _[Back to Top](#contents)_
 
