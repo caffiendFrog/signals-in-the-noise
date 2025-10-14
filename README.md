@@ -2,6 +2,7 @@
   <img src="images/project_logo_transparent.png" alt="Signals in the noise project logo" width="100" style="vertical-align: middle; margin-right: 0.5rem;">
   Signals in the Noise
 </h1>
+The graded final report for this project can be found [here]([url](https://github.com/caffiendFrog/portoflio/blob/main/academics/SIADS-699/Signal%20Seekers%20(Team%2013)%20Final%20Report.pdf)).
 
 ## Contents
 * [Overview](#overview)
