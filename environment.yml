@@ -1,0 +1,43 @@
+name: signals-in-the-noise
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.11
+
+  # Core scientific stack
+  - numpy=2.2
+  - pandas=2.2
+  - scipy=1.15
+  - scikit-learn=1.5
+  - matplotlib=3.10
+  - seaborn=0.13
+  - numba=0.61        # required by openTSNE
+
+  # Single-cell / bioinformatics
+  - anndata=0.11
+  - scanpy=1.11
+  - python-igraph=0.11  # conda-forge package name for igraph
+  - leidenalg=0.10
+  - opentsne=1.0
+
+  # Utilities
+  - python-slugify=8.0
+  - openpyxl=3.1
+  - xlrd=2.0
+
+  # Notebook runtime
+  - jupyterlab=4.4
+  - ipykernel
+
+  # Dev / test
+  - pytest=8.3
+  - pytest-cov
+  - black
+  - ruff
+
+  - pip
+  - pip:
+    - scrublet>=0.2.3   # not on conda-forge; falls back to PyPI
+    - gseapy>=1.1.8     # not on conda-forge; falls back to PyPI
+    - -e .

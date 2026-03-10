@@ -1,15 +1,42 @@
 [build-system]
-requires = ["setuptools>=65", "wheel"]
+requires = ["setuptools>=70", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "signals-in-the-noise"
+name = "signals_in_the_noise"
 version = "0.1.0"
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python = ">=3.11"
+dependencies = [
+    "anndata>=0.11",
+    "numpy>=2.2",
+    "pandas>=2.2",
+    "scanpy>=1.11",
+    "scipy>=1.15",
+    "scikit-learn>=1.5",
+    "matplotlib>=3.10",
+    "seaborn>=0.13",
+    "opentsne>=1.0",
+    "python-slugify>=8.0",
+    "openpyxl>=3.1",
+    "xlrd>=2.0",
+    "gseapy>=1.1",
+    "scrublet>=0.2",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3",
+    "pytest-cov",
+    "black",
+    "ruff",
+]
 
 [tool.setuptools]
 package-dir = {"" = "src"}
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
