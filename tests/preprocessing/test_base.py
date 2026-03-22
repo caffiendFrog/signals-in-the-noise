@@ -146,6 +146,18 @@ def test_get_dataset_returns_empty_adata_for_unknown_key(tmp_path):
     assert isinstance(result, AnnData)
 
 
+def test_get_dataset_returns_copy_when_found(tmp_path):
+    import scipy.sparse as sp
+
+    p = _make_preprocessor(tmp_path)
+    stored = AnnData(sp.csr_matrix(np.ones((3, 4))))
+    p.objects["sample.h5ad"] = stored
+
+    result = p.get_dataset("sample.h5ad")
+    assert result is not stored
+    assert result.shape == stored.shape
+
+
 # ---------------------------------------------------------------------------
 # Preprocessor — random_seed
 # ---------------------------------------------------------------------------

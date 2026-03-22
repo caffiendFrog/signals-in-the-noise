@@ -52,6 +52,26 @@ def test_tenx_init_happy_path(tmp_path):
 
 
 # ---------------------------------------------------------------------------
+# TenX.load_adata — missing cache directory
+# ---------------------------------------------------------------------------
+
+
+def test_load_adata_does_nothing_when_cache_directory_missing(tmp_path):
+    features_file = tmp_path / "STUDY_features.tsv.gz"
+    features_file.touch()
+
+    def fake_get_data_path(subpath=None):
+        return tmp_path / subpath if subpath else tmp_path
+
+    with patch("signals_in_the_noise.io.tenx.get_data_path", side_effect=fake_get_data_path):
+        tenx = TenX(str(tmp_path), features_filename=str(features_file))
+        # cache directory is not created — load_adata should be a no-op
+        tenx.load_adata()
+
+    assert tenx.multiple_adata == []
+
+
+# ---------------------------------------------------------------------------
 # TenX.cache_directory_name
 # ---------------------------------------------------------------------------
 

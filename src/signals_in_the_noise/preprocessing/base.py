@@ -151,7 +151,7 @@ class Preprocessor:
             A copy of the dataset if found, otherwise an empty AnnData.
         """
         actual = self.objects.get(filename, None)
-        if actual:
+        if actual is not None:
             return actual.copy()
         return AnnData()
 

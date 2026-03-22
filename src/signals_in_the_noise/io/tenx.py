@@ -57,8 +57,15 @@ class TenX:
         return get_data_path(f"{self.study_id}_adata_cache")
 
     def load_adata(self) -> None:
-        """Load AnnData objects from the h5ad cache directory."""
-        for file in self.cache_directory_name.iterdir():
+        """Load AnnData objects from the h5ad cache directory.
+
+        Does nothing if the cache directory does not yet exist.
+        """
+        cache_directory = self.cache_directory_name
+        if not cache_directory.exists():
+            logger.info(f"Cache directory does not exist, nothing to load: {cache_directory}")
+            return
+        for file in cache_directory.iterdir():
             logger.info(f"Reading {file} as AnnData object.")
             adata = sc.read_h5ad(file)
             adata.obs["adata-filename"] = file.name

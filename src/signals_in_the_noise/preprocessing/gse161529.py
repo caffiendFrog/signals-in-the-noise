@@ -282,7 +282,7 @@ class GSE161529(Preprocessor):
         resource_df.columns = [slugify(column) for column in resource_df.columns]
 
         resource_df["sample-suffix"] = resource_df["barcodes-file"].str.replace(
-            "-barcodes.tsv.gz", ""
+            "-barcodes.tsv.gz", "", regex=False
         )
         resource_df["adata-filename"] = (
             resource_df["geo-id"].astype(str)
@@ -293,7 +293,7 @@ class GSE161529(Preprocessor):
 
         return resource_df
 
-    def annotate_epithial_cell_typing(self, adata, *, hvg_only: bool = True):
+    def annotate_epithelial_cell_typing(self, adata, *, hvg_only: bool = True):
         """Score cells for epithelial cell types: basal, luminal progenitor, mature luminal, other.
 
         Args:
@@ -306,10 +306,10 @@ class GSE161529(Preprocessor):
             ``predicted_type_score``, ``score_other``.
         """
         gene_signature_filenames = {
-            "basal": "epithial_cell_typing/41591_2009_BFnm2000_MOESM13_ESM.xls",
-            "lp": "epithial_cell_typing/41591_2009_BFnm2000_MOESM14_ESM.xls",
-            "ml": "epithial_cell_typing/41591_2009_BFnm2000_MOESM15_ESM.xls",
-            "stromal": "epithial_cell_typing/41591_2009_BFnm2000_MOESM16_ESM.xls",
+            "basal": "epithelial_cell_typing/41591_2009_BFnm2000_MOESM13_ESM.xls",
+            "lp": "epithelial_cell_typing/41591_2009_BFnm2000_MOESM14_ESM.xls",
+            "ml": "epithelial_cell_typing/41591_2009_BFnm2000_MOESM15_ESM.xls",
+            "stromal": "epithelial_cell_typing/41591_2009_BFnm2000_MOESM16_ESM.xls",
         }
 
         adata = self.score_gene_signature_expression(
@@ -322,7 +322,7 @@ class GSE161529(Preprocessor):
 
         score_cols = [f"score_{k}" for k in gene_signature_filenames.keys()]
         adata.obs["predicted_type"] = (
-            adata.obs[score_cols].idxmax(axis=1).str.replace("score_", "")
+            adata.obs[score_cols].idxmax(axis=1).str.replace("score_", "", regex=False)
         )
         adata.obs["predicted_type_score"] = adata.obs[score_cols].max(axis=1)
 
@@ -335,7 +335,7 @@ class GSE161529(Preprocessor):
 
         return adata.copy()
 
-    def get_combined_epithilial_dataset(
+    def get_combined_epithelial_dataset(
         self,
         *,
         real_filename: str = "combined_epi_normal_real.h5ad",
@@ -347,7 +347,7 @@ class GSE161529(Preprocessor):
         real_pca_kwargs: dict = None,
         noise_pca_kwargs: dict = None,
     ):
-        """Recreate the combined epithelial dataset used for Figure 1 visualisations.
+        """Recreate the combined epithelial dataset used for Figure 1 visualizations.
 
         Args:
             real_filename: Cache filename for non-noise cells.
@@ -390,7 +390,7 @@ class GSE161529(Preprocessor):
                     adata_subset = self.cache_raw_gene_expression(
                         adata_subset, self.EPI_CELL_TYPING_GENES
                     )
-                    adata_subset = self.annotate_epithial_cell_typing(
+                    adata_subset = self.annotate_epithelial_cell_typing(
                         adata_subset, hvg_only=False
                     )
                     if remove_stromal:
