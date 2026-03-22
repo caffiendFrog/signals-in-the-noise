@@ -1,9 +1,14 @@
 """Download and extract the GSE161529 raw data files into data/raw/."""
 
 import logging
+import sys
 import tarfile
 from pathlib import Path
 from urllib import request
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+
+from signals_in_the_noise.utils.logging_config import setup_logging
 
 logger = logging.getLogger(__name__)
 
@@ -52,10 +57,7 @@ def extract_tar(archive: Path, extract_to: Path) -> None:
 
 def main() -> None:
     """Download raw data and features file; extract the tar archive."""
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-    )
+    setup_logging()
 
     DATA_DIRECTORY.mkdir(parents=True, exist_ok=True)
 
