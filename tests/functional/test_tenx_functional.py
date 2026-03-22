@@ -18,7 +18,7 @@ from unittest.mock import patch
 
 import pytest
 
-from signals_in_the_noise.io.tenx import TenX, DirectoryType
+from signals_in_the_noise.io.tenx import TenX
 from tests.functional.conftest import (
     EXPECTED_N_CELLS,
     EXPECTED_N_GENES,
@@ -41,11 +41,7 @@ def _make_tenx(raw_dir: Path, features_file: Path, tmp_path: Path) -> TenX:
         return tmp_path / subpath
 
     with patch("signals_in_the_noise.io.tenx.get_data_path", side_effect=fake_get_data_path):
-        return TenX(
-            str(raw_dir),
-            DirectoryType.MULTIPLE,
-            features_filename=str(features_file),
-        )
+        return TenX(str(raw_dir), features_filename=str(features_file))
 
 
 # ---------------------------------------------------------------------------
@@ -58,8 +54,7 @@ def test_load_data_returns_one_adata_per_sample(tmp_path, tenx_raw_dir, tenx_fea
         return tmp_path / subpath if subpath else tmp_path
 
     with patch("signals_in_the_noise.io.tenx.get_data_path", side_effect=fake_gdp):
-        tenx = TenX(str(tenx_raw_dir), DirectoryType.MULTIPLE,
-                    features_filename=str(tenx_features_file))
+        tenx = TenX(str(tenx_raw_dir), features_filename=str(tenx_features_file))
         tenx.load_data(cache=False)
 
     assert len(tenx.multiple_adata) == len(EXPECTED_SAMPLES)
@@ -70,8 +65,7 @@ def test_load_data_adata_shape_matches_fixture(tmp_path, tenx_raw_dir, tenx_feat
         return tmp_path / subpath if subpath else tmp_path
 
     with patch("signals_in_the_noise.io.tenx.get_data_path", side_effect=fake_gdp):
-        tenx = TenX(str(tenx_raw_dir), DirectoryType.MULTIPLE,
-                    features_filename=str(tenx_features_file))
+        tenx = TenX(str(tenx_raw_dir), features_filename=str(tenx_features_file))
         tenx.load_data(cache=False)
 
     for adata in tenx.multiple_adata:
@@ -88,8 +82,7 @@ def test_load_data_gene_names_match_fixture(tmp_path, tenx_raw_dir, tenx_feature
         return tmp_path / subpath if subpath else tmp_path
 
     with patch("signals_in_the_noise.io.tenx.get_data_path", side_effect=fake_gdp):
-        tenx = TenX(str(tenx_raw_dir), DirectoryType.MULTIPLE,
-                    features_filename=str(tenx_features_file))
+        tenx = TenX(str(tenx_raw_dir), features_filename=str(tenx_features_file))
         tenx.load_data(cache=False)
 
     for adata in tenx.multiple_adata:
@@ -101,8 +94,7 @@ def test_load_data_barcodes_match_fixture(tmp_path, tenx_raw_dir, tenx_features_
         return tmp_path / subpath if subpath else tmp_path
 
     with patch("signals_in_the_noise.io.tenx.get_data_path", side_effect=fake_gdp):
-        tenx = TenX(str(tenx_raw_dir), DirectoryType.MULTIPLE,
-                    features_filename=str(tenx_features_file))
+        tenx = TenX(str(tenx_raw_dir), features_filename=str(tenx_features_file))
         tenx.load_data(cache=False)
 
     # Collect all barcode lists across loaded adatas
@@ -120,8 +112,7 @@ def test_load_data_sets_adata_filename_obs_column(tmp_path, tenx_raw_dir, tenx_f
         return tmp_path / subpath if subpath else tmp_path
 
     with patch("signals_in_the_noise.io.tenx.get_data_path", side_effect=fake_gdp):
-        tenx = TenX(str(tenx_raw_dir), DirectoryType.MULTIPLE,
-                    features_filename=str(tenx_features_file))
+        tenx = TenX(str(tenx_raw_dir), features_filename=str(tenx_features_file))
         tenx.load_data(cache=False)
 
     for adata in tenx.multiple_adata:
@@ -140,8 +131,7 @@ def test_load_data_count_matrix_is_non_negative(tmp_path, tenx_raw_dir, tenx_fea
         return tmp_path / subpath if subpath else tmp_path
 
     with patch("signals_in_the_noise.io.tenx.get_data_path", side_effect=fake_gdp):
-        tenx = TenX(str(tenx_raw_dir), DirectoryType.MULTIPLE,
-                    features_filename=str(tenx_features_file))
+        tenx = TenX(str(tenx_raw_dir), features_filename=str(tenx_features_file))
         tenx.load_data(cache=False)
 
     for adata in tenx.multiple_adata:
@@ -159,8 +149,7 @@ def test_load_data_with_cache_creates_h5ad_files(tmp_path, tenx_raw_dir, tenx_fe
         return tmp_path / subpath if subpath else tmp_path
 
     with patch("signals_in_the_noise.io.tenx.get_data_path", side_effect=fake_gdp):
-        tenx = TenX(str(tenx_raw_dir), DirectoryType.MULTIPLE,
-                    features_filename=str(tenx_features_file))
+        tenx = TenX(str(tenx_raw_dir), features_filename=str(tenx_features_file))
         tenx.load_data(cache=True)
 
         cache_dir = tenx.cache_directory_name
@@ -180,13 +169,11 @@ def test_load_data_with_cache_then_load_adata_gives_same_shapes(
 
     with patch("signals_in_the_noise.io.tenx.get_data_path", side_effect=fake_gdp):
         # First pass: load from raw files and cache
-        tenx_first = TenX(str(tenx_raw_dir), DirectoryType.MULTIPLE,
-                          features_filename=str(tenx_features_file))
+        tenx_first = TenX(str(tenx_raw_dir), features_filename=str(tenx_features_file))
         tenx_first.load_data(cache=True)
 
         # Second pass: load from cache via load_adata()
-        tenx_second = TenX(str(tenx_raw_dir), DirectoryType.MULTIPLE,
-                           features_filename=str(tenx_features_file))
+        tenx_second = TenX(str(tenx_raw_dir), features_filename=str(tenx_features_file))
         tenx_second.load_adata()
 
     assert len(tenx_second.multiple_adata) == len(EXPECTED_SAMPLES)
@@ -205,13 +192,11 @@ def test_load_data_with_cache_skips_already_cached_samples(
 
     with patch("signals_in_the_noise.io.tenx.get_data_path", side_effect=fake_gdp):
         # First load populates the cache
-        tenx1 = TenX(str(tenx_raw_dir), DirectoryType.MULTIPLE,
-                     features_filename=str(tenx_features_file))
+        tenx1 = TenX(str(tenx_raw_dir), features_filename=str(tenx_features_file))
         tenx1.load_data(cache=True)
 
         # Second load with cache=True; should skip and load from skipped_files
-        tenx2 = TenX(str(tenx_raw_dir), DirectoryType.MULTIPLE,
-                     features_filename=str(tenx_features_file))
+        tenx2 = TenX(str(tenx_raw_dir), features_filename=str(tenx_features_file))
         tenx2.load_data(cache=True)
 
     assert len(tenx2.multiple_adata) == len(EXPECTED_SAMPLES)

@@ -1,24 +1,11 @@
 """Tests for signals_in_the_noise.io.tenx."""
 
 from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 import pytest
 
-from signals_in_the_noise.io.tenx import TenX, DirectoryType
-
-
-# ---------------------------------------------------------------------------
-# DirectoryType enum
-# ---------------------------------------------------------------------------
-
-
-def test_directory_type_multiple_value():
-    assert DirectoryType.MULTIPLE == "multiple"
-
-
-def test_directory_type_is_str_enum():
-    assert isinstance(DirectoryType.MULTIPLE, str)
+from signals_in_the_noise.io.tenx import TenX
 
 
 # ---------------------------------------------------------------------------
@@ -26,28 +13,21 @@ def test_directory_type_is_str_enum():
 # ---------------------------------------------------------------------------
 
 
-def test_tenx_init_raises_without_features_filename():
-    with pytest.raises(ValueError, match="features_filename required"):
-        TenX("some/dir", DirectoryType.MULTIPLE)
-
-
 def test_tenx_init_raises_when_features_file_missing(tmp_path):
     with pytest.raises(FileNotFoundError, match="Required file not found"):
-        TenX(str(tmp_path), DirectoryType.MULTIPLE, features_filename="nonexistent_features.tsv.gz")
+        TenX(str(tmp_path), features_filename="nonexistent_features.tsv.gz")
 
 
 def test_tenx_init_raises_on_wrong_features_format(tmp_path):
     bad_features = tmp_path / "GSE161529_wrong.tsv.gz"
     bad_features.touch()
     with pytest.raises(ValueError, match="expected format"):
-        TenX(str(tmp_path), DirectoryType.MULTIPLE, features_filename=str(bad_features))
+        TenX(str(tmp_path), features_filename=str(bad_features))
 
 
-def test_tenx_init_raises_on_invalid_directory_type(tmp_path):
-    with pytest.raises(ValueError, match="Invalid directory_type"):
-        TenX.__new__(TenX).__init__.__func__(
-            TenX.__new__(TenX), str(tmp_path), "bad_type"
-        )
+def test_tenx_init_requires_features_filename_keyword():
+    with pytest.raises(TypeError):
+        TenX("some/dir")
 
 
 # ---------------------------------------------------------------------------
@@ -63,7 +43,7 @@ def test_tenx_init_happy_path(tmp_path):
         study_dir = tmp_path / "GSE161529"
         mock_get_data_path.return_value = study_dir
 
-        tenx = TenX(str(tmp_path), DirectoryType.MULTIPLE, features_filename=str(features_file))
+        tenx = TenX(str(tmp_path), features_filename=str(features_file))
 
     assert tenx.study_id == "GSE161529"
     assert tenx.features_path == features_file
@@ -88,7 +68,7 @@ def test_cache_directory_name_uses_study_id(tmp_path):
         return tmp_path / subpath
 
     with patch("signals_in_the_noise.io.tenx.get_data_path", side_effect=fake_get_data_path):
-        tenx = TenX(str(tmp_path), DirectoryType.MULTIPLE, features_filename=str(features_file))
+        tenx = TenX(str(tmp_path), features_filename=str(features_file))
         result = tenx.cache_directory_name
 
     assert result == expected_cache
@@ -115,7 +95,7 @@ def test_samples_to_file_dictionary_matches_barcodes_and_matrix(tmp_path):
         return tmp_path / subpath
 
     with patch("signals_in_the_noise.io.tenx.get_data_path", side_effect=fake_get_data_path):
-        tenx = TenX(str(raw_dir), DirectoryType.MULTIPLE, features_filename=str(features_file))
+        tenx = TenX(str(raw_dir), features_filename=str(features_file))
         result = tenx._samples_to_file_dictionary()
 
     assert "SAMPLE1" in result
@@ -140,7 +120,7 @@ def test_samples_to_file_dictionary_ignores_non_matching_files(tmp_path):
         return tmp_path / subpath
 
     with patch("signals_in_the_noise.io.tenx.get_data_path", side_effect=fake_get_data_path):
-        tenx = TenX(str(raw_dir), DirectoryType.MULTIPLE, features_filename=str(features_file))
+        tenx = TenX(str(raw_dir), features_filename=str(features_file))
         result = tenx._samples_to_file_dictionary()
 
     assert len(result) == 0

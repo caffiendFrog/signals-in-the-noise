@@ -12,7 +12,7 @@ from scipy import sparse
 from slugify import slugify
 
 from signals_in_the_noise.config import get_data_path, get_resources_path
-from signals_in_the_noise.io.tenx import TenX, DirectoryType
+from signals_in_the_noise.io.tenx import TenX
 from signals_in_the_noise.preprocessing.base import Preprocessor
 from signals_in_the_noise.utils.log import get_logger
 
@@ -106,11 +106,7 @@ class GSE161529(Preprocessor):
         super().__init__(self.STUDY_ID)
         raw_data_directory = get_data_path(self.RAW_DATA_DIRECTORY)
         features_filename = get_data_path(self.FEATURES_FILENAME)
-        raw_data = TenX(
-            str(raw_data_directory),
-            DirectoryType.MULTIPLE,
-            features_filename=str(features_filename),
-        )
+        raw_data = TenX(str(raw_data_directory), features_filename=str(features_filename))
         self.cache_directory_path = Path(raw_data.cache_directory_name)
         if not self.is_data_loaded:
             raw_data.load_data()

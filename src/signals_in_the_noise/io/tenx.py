@@ -1,7 +1,6 @@
 import re
 import shutil
 from collections import defaultdict
-from enum import StrEnum
 from pathlib import Path
 
 import scanpy as sc
@@ -12,63 +11,45 @@ from signals_in_the_noise.utils.log import get_logger
 logger = get_logger(__name__)
 
 
-class DirectoryType(StrEnum):
-    MULTIPLE = "multiple"
-
-
 class TenX:
     """Utility class for reconstituting 10x Genomics raw data into a sparse AnnData object.
 
-    The directory for multiple samples (many sets of cells) is expected to contain:
+    The directory is expected to contain one pair of files per sample:
         - <sample identifier>-barcodes.tsv.gz
         - <sample identifier>-matrix.mtx.gz
 
-    With a single shared features file:
-        - <study identifier>_features.tsv.gz
+    With a single shared features file (named ``<study identifier>_features.tsv.gz``)
+    supplied separately.
     """
 
-    def __init__(
-        self,
-        directory: str,
-        directory_type: DirectoryType,
-        *,
-        features_filename: str = None,
-    ):
-        """Initialize a TenX loader.
+    def __init__(self, directory: str, *, features_filename: str):
+        """Initialise a TenX loader.
 
         Args:
-            directory: Path to the directory containing raw 10x files.
-            directory_type: Layout type of the directory.
-            features_filename: Path to the features TSV file; required for MULTIPLE layout.
+            directory: Path to the directory containing the raw per-sample files.
+            features_filename: Path to the shared features TSV file.
+                Must end with ``_features.tsv.gz``.
 
         Raises:
-            ValueError: If required arguments are missing or the features filename format is wrong.
             FileNotFoundError: If ``features_filename`` does not exist on disk.
+            ValueError: If the features filename is not in the expected format.
         """
         self.directory = Path(directory)
-        self.directory_type = directory_type
 
-        match self.directory_type:
-            case DirectoryType.MULTIPLE:
-                if not features_filename:
-                    raise ValueError("features_filename required for directory type MULTIPLE")
-                features_path = Path(features_filename)
-                if not features_path.exists():
-                    raise FileNotFoundError(f"Required file not found: {features_filename}")
-                self.features_path = features_path
+        features_path = Path(features_filename)
+        if not features_path.exists():
+            raise FileNotFoundError(f"Required file not found: {features_filename}")
+        if not features_path.name.endswith("_features.tsv.gz"):
+            raise ValueError(
+                "features_filename is not in the expected format, '_features.tsv.gz'"
+            )
 
-                if not self.features_path.name.endswith("_features.tsv.gz"):
-                    raise ValueError(
-                        "features_filename is not in the expected format, '_features.tsv.gz'"
-                    )
+        self.features_path = features_path
+        self.study_id = features_path.stem.replace("_features.tsv", "")
+        self.multiple_adata = []
 
-                self.study_id = self.features_path.stem.replace("_features.tsv", "")
-                self.multiple_adata = []
-
-                self.study_directory = get_data_path(self.study_id)
-                self.study_directory.mkdir(parents=True, exist_ok=True)
-            case _:
-                raise ValueError(f"Invalid directory_type {directory_type}")
+        self.study_directory = get_data_path(self.study_id)
+        self.study_directory.mkdir(parents=True, exist_ok=True)
 
     @property
     def cache_directory_name(self) -> Path:
@@ -77,28 +58,17 @@ class TenX:
 
     def load_adata(self) -> None:
         """Load AnnData objects from the h5ad cache directory."""
-        cache_directory = self.cache_directory_name
-        for file in cache_directory.iterdir():
+        for file in self.cache_directory_name.iterdir():
             logger.info(f"Reading {file} as AnnData object.")
             adata = sc.read_h5ad(file)
             adata.obs["adata-filename"] = file.name
             self.multiple_adata.append(adata)
 
     def load_data(self, *, cache: bool = True) -> None:
-        """Load raw 10x data and optionally cache each sample as h5ad.
+        """Load raw 10x data, reorganise into per-sample directories, and read as AnnData.
 
         Args:
-            cache: When True, each loaded AnnData object is written to disk.
-        """
-        match self.directory_type:
-            case DirectoryType.MULTIPLE:
-                self.load_multiple_adata(cache=cache)
-
-    def load_multiple_adata(self, *, cache: bool) -> None:
-        """Reconstitute and load all samples in a multi-sample directory.
-
-        Args:
-            cache: When True, AnnData objects are written to h5ad files in the cache directory.
+            cache: When True, each loaded AnnData object is written to disk as h5ad.
         """
         cache_directory = None
         if cache:
@@ -126,7 +96,7 @@ class TenX:
     def _reconstitute_ten_x_file_structure(
         self, samples_to_files: dict, cache_directory: Path | None
     ) -> None:
-        """Reorganize raw files into per-sample 10x layout and load as AnnData.
+        """Reorganise raw files into per-sample 10x layout and load as AnnData.
 
         Args:
             samples_to_files: Mapping of sample IDs to their source filenames.
@@ -150,20 +120,15 @@ class TenX:
                 continue
 
             for filename in filenames:
-                target_path = None
                 source_path = self.directory / filename
                 if "barcodes" in filename:
-                    target_path = sample_dir / "barcodes.tsv.gz"
+                    shutil.copy2(source_path, sample_dir / "barcodes.tsv.gz")
                 elif "matrix" in filename:
-                    target_path = sample_dir / "matrix.mtx.gz"
-                if target_path:
-                    shutil.copy2(source_path, target_path)
+                    shutil.copy2(source_path, sample_dir / "matrix.mtx.gz")
                 else:
                     missing_targets[sample_identifier].append(filename)
 
-            # Everyone gets the same features file
-            features_target = sample_dir / "features.tsv.gz"
-            shutil.copy2(self.features_path, features_target)
+            shutil.copy2(self.features_path, sample_dir / "features.tsv.gz")
 
             if sample_identifier not in missing_targets:
                 logger.info(f"Reading {sample_identifier} as AnnData object.")
@@ -172,9 +137,8 @@ class TenX:
                 adata.obs["adata-filename"] = adata_filename
                 self.multiple_adata.append(adata)
                 if cache_directory:
-                    adata_path = cache_directory / adata_filename
                     logger.info("...caching object.")
-                    adata.write_h5ad(adata_path)
+                    adata.write_h5ad(cache_directory / adata_filename)
             else:
                 logger.warning(
                     f"Skipping {sample_identifier}, unable to determine target paths for "
