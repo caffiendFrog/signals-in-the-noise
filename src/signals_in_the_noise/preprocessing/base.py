@@ -33,7 +33,7 @@ class PreprocessorConfig:
     custom: List[str] = field(default_factory=list)
 
     def to_json(self, path: Path, indent: int = 2) -> None:
-        """Serialise this config to a JSON file.
+        """Serialize this config to a JSON file.
 
         Args:
             path: Destination file path (parent directories are created if needed).
@@ -46,7 +46,7 @@ class PreprocessorConfig:
 
     @classmethod
     def from_json(cls, path: Path) -> "PreprocessorConfig":
-        """Deserialise a PreprocessorConfig from a JSON file.
+        """Deserialize a PreprocessorConfig from a JSON file.
 
         Args:
             path: Path to the JSON file.
@@ -63,7 +63,7 @@ class Preprocessor:
     """Base class for preprocessing single-cell RNA-seq data."""
 
     def __init__(self, study_id: str):
-        """Initialise the preprocessor and load or create its config.
+        """Initialize the preprocessor and load or create its config.
 
         Args:
             study_id: Identifier for the study, used to derive file paths.

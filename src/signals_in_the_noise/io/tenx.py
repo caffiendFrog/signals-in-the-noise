@@ -23,7 +23,7 @@ class TenX:
     """
 
     def __init__(self, directory: str, *, features_filename: str):
-        """Initialise a TenX loader.
+        """Initialize a TenX loader.
 
         Args:
             directory: Path to the directory containing the raw per-sample files.
@@ -72,7 +72,7 @@ class TenX:
             self.multiple_adata.append(adata)
 
     def load_data(self, *, cache: bool = True) -> None:
-        """Load raw 10x data, reorganise into per-sample directories, and read as AnnData.
+        """Load raw 10x data, reorganize into per-sample directories, and read as AnnData.
 
         Args:
             cache: When True, each loaded AnnData object is written to disk as h5ad.
@@ -103,7 +103,7 @@ class TenX:
     def _reconstitute_ten_x_file_structure(
         self, samples_to_files: dict, cache_directory: Path | None
     ) -> None:
-        """Reorganise raw files into per-sample 10x layout and load as AnnData.
+        """Reorganize raw files into per-sample 10x layout and load as AnnData.
 
         Args:
             samples_to_files: Mapping of sample IDs to their source filenames.

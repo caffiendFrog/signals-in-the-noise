@@ -5,7 +5,7 @@ fixture files in data/fixtures/tenx/.  No mocking of scanpy or file I/O
 occurs — the fixtures are read exactly as real data would be.
 
 The only patching done is to redirect ``get_data_path`` so that TenX writes
-its reorganised sample directories and h5ad cache into pytest's tmp_path
+its reorganized sample directories and h5ad cache into pytest's tmp_path
 instead of the project's data/ directory.
 
 To regenerate the fixture files:

@@ -453,7 +453,7 @@ class GSE161529(Preprocessor):
         neighbors_kwargs: dict = None,
         cluster_kwargs: dict = None,
     ) -> None:
-        """Find clusters in the dataset using PCA → neighbour graph → Leiden.
+        """Find clusters in the dataset using PCA → neighbor graph → Leiden.
 
         The default parameter values for the clustering algorithm are:
         * resolution = 0.015 (from article)
@@ -523,12 +523,12 @@ class GSE161529(Preprocessor):
         adata.obsm["X_tsne"] = np.asarray(X_embedding)
 
     def visualize_tsne(self, adata, color, *, use_raw: bool = False, plot_kwargs: dict = None):
-        """Render a t-SNE plot coloured by the given variable.
+        """Render a t-SNE plot colored by the given variable.
 
         Args:
             adata: AnnData object with ``obsm['X_tsne']`` populated.
-            color: Variable name(s) to colour by.
-            use_raw: Whether to use the ``.raw`` attribute for colour values.
+            color: Variable name(s) to color by.
+            use_raw: Whether to use the ``.raw`` attribute for color values.
             plot_kwargs: Additional kwargs forwarded to ``sc.pl.tsne``.
         """
         default_plot_kwargs = {"color": color, "use_raw": use_raw}
