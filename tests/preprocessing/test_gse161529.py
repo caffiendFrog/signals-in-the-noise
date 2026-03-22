@@ -4,7 +4,6 @@ import numpy as np
 import pytest
 import scipy.sparse as sp
 from anndata import AnnData
-from unittest.mock import patch, MagicMock
 
 from signals_in_the_noise.preprocessing.gse161529 import GSE161529
 
