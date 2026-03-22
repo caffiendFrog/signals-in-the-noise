@@ -15,4 +15,8 @@ venv/
 
 # Windows
 Thumbs.db
-.DS_Store
+
+# Data directories (large files; user-supplied inputs not tracked)
+data/raw/
+data/processed/
+data/reference/
