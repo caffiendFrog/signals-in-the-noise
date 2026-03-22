@@ -34,7 +34,7 @@ class TenX:
         *,
         features_filename: str = None,
     ):
-        """Initialise a TenX loader.
+        """Initialize a TenX loader.
 
         Args:
             directory: Path to the directory containing raw 10x files.
@@ -126,7 +126,7 @@ class TenX:
     def _reconstitute_ten_x_file_structure(
         self, samples_to_files: dict, cache_directory: Path | None
     ) -> None:
-        """Reorganise raw files into per-sample 10x layout and load as AnnData.
+        """Reorganize raw files into per-sample 10x layout and load as AnnData.
 
         Args:
             samples_to_files: Mapping of sample IDs to their source filenames.
@@ -161,6 +161,7 @@ class TenX:
                 else:
                     missing_targets[sample_identifier].append(filename)
 
+            # Everyone gets the same features file
             features_target = sample_dir / "features.tsv.gz"
             shutil.copy2(self.features_path, features_target)
 

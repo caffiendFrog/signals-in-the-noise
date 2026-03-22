@@ -162,7 +162,7 @@ class GSE161529(Preprocessor):
             "qc_genes_lower": slugify("# genes - lower"),
             "qc_genes_upper": slugify("# genes - upper"),
             "qc_total_upper": slugify("library size - upper"),
-            # columns duplicated across resource files get _x/_y suffixes after merge
+            # columns duplicated across resource files get _x suffixes after merge
             "gender": slugify("gender_x"),
             "parity": slugify("parity_x"),
         }
@@ -206,6 +206,9 @@ class GSE161529(Preprocessor):
     @staticmethod
     def _apply_one(adata) -> None:
         """Annotate a single AnnData object with QC flags (in-place).
+
+        Adds the following var column:
+        1. `mt` — list of mitochondrial genes present
 
         Adds the following obs columns:
         1. ``is_low_num_genes`` — 1 if gene count <= ``qc_genes_lower`` threshold.
@@ -354,6 +357,8 @@ class GSE161529(Preprocessor):
             real_filename: Cache filename for non-noise cells.
             noise_filename: Cache filename for noise cells.
             use_leiden: When True, use Leiden clustering (currently the only supported option).
+                To use louvain algorithm, first install it and its dependencies (including cmake). Then modify
+                `find_clusters` to remove the forcing to True.
             remove_stromal: When True, remove stromal-typed cells from the combined dataset.
             hvg_post_stromal: When True, re-filter to HVGs after stromal removal.
             genes_to_check: Optional list of genes to sanity-check for presence.
@@ -454,6 +459,15 @@ class GSE161529(Preprocessor):
     ) -> None:
         """Find clusters in the dataset using PCA → neighbour graph → Leiden.
 
+        The default parameter values for the clustering algorithm are:
+        * resolution = 0.015 (from article)
+        * n_neighbors = 15
+        * n_comps = 50
+
+        Paramters can be customized by providing one of the kwargs
+
+        Note: n_comps & n_pcs have been explicitly set for determinism.
+
         Args:
             adata: AnnData object (modified in place).
             use_leiden: Must be True; Louvain is not installed.
@@ -484,7 +498,10 @@ class GSE161529(Preprocessor):
         default_cluster_parameters = {"resolution": 0.015, "random_state": self.random_seed}
         if cluster_kwargs:
             default_cluster_parameters.update(cluster_kwargs)
-        sc.tl.leiden(adata, **default_cluster_parameters)
+        if use_leiden:
+            sc.tl.leiden(adata, **default_cluster_parameters)
+        else:
+            sc.tl.louvain(adata, **default_cluster_parameters)
 
     def calculate_tsne(self, adata, *, tsne_kwargs: dict = None) -> None:
         """Compute t-SNE embeddings from PCA coordinates.

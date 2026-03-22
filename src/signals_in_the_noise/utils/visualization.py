@@ -31,8 +31,10 @@ def get_figure_axes(
 
     fig, axes = plt.subplots(rows, num_cols, figsize=(width, height), sharex=share_x, sharey=share_y)
 
+    # massage axes to guarantee it is a flat list
     axes = axes.flatten() if isinstance(axes, (list, np.ndarray)) or axes.ndim > 0 else [axes]
 
+    # turn "off" any plots that are not used, subplot returns a grid
     for i in range(n_plots, len(axes)):
         axes[i].axis("off")
 
