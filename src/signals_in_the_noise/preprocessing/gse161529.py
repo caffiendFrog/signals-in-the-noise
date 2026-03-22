@@ -30,8 +30,8 @@ class GSE161529(Preprocessor):
     """
 
     STUDY_ID = "GSE161529"
-    RAW_DATA_DIRECTORY = f"{STUDY_ID}_RAW"
-    FEATURES_FILENAME = f"{STUDY_ID}_features.tsv.gz"
+    RAW_DATA_DIRECTORY = f"raw/{STUDY_ID}_RAW"
+    FEATURES_FILENAME = f"raw/{STUDY_ID}_features.tsv.gz"
 
     EXPECTED_MISMATCHES = [
         "GSM4909296_ER-MH0001.h5ad",
