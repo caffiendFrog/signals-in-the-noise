@@ -35,13 +35,13 @@ _[Back to Top](#contents)_
 
 This project is motivated by the causal ambiguity of identifying thresholds for quality control (QC) metrics in the pre-processing workflow. Specifically, thresholds for scRNA-seq are set using biological assumptions, while those same or related assumptions are being evaluated by scRNA-seq. One such biological assumption is that cells with higher total RNA are metabolically healthy. As a result, the QC process often prioritizes these cells, while treating cells with low total RNA counts as technical artifacts to be filtered out [3, 4]. This approach, while effective for minimizing noise from ambient RNA contamination, risks eliminating biologically meaningful signals.
 
-| Feature to Threshold      | Filtered by QC Metric | Targeted by DDR | Dormant Cells                 |
+| Feature to Threshold      | Filtered by QC Metric | Targeted by DDR | pbs-2                         |
 |---------------------------|------------------------|-----------------|-------------------------------|
-| Low total RNA content     | ✅ Damaged cell        | ⚠️ Depends      | ✅ Viable but quiet cell       |
+| Low total RNA content     | ✅ pbs-1               | ⚠️ Depends      | ✅ Viable but quiet cell       |
 | High total RNA content    | ✅ Degraded cell       | ⚠️ Depends      | ✅ Limited active gene expression |
 | Low number of genes       | ✅ Technical artifact  | ⚠️ Depends      | ✅ Limited active gene expression |
-| Low mitochondrial RNA %   | ❌ Not filtered out    | ✅ Damaged cell  | ✅ Limited energy needs        |
-| High mitochondrial RNA %  | ✅ Damaged cell        | ✅ Damaged cell  | ❌ Not dormant                 |
+| Low mitochondrial RNA %   | ❌ Not filtered out    | ✅ pbs-1         | ✅ Limited energy needs        |
+| High mitochondrial RNA %  | ✅ pbs-1               | ✅ pbs-1         | ❌ Not pbs-2                   |
 
 *Table 1. Summary of QC metric thresholds and how they correspond to different kinds of cells.*
 

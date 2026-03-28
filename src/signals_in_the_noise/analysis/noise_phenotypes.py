@@ -12,7 +12,7 @@ def classify_noise_subtypes(
     q_low: float = 0.25,
     q_high: float = 0.75,
 ) -> AnnData:
-    """Classify noise cells into damaged, dormant, and multifunction subtypes.
+    """Classify noise cells into pbs-1, pbs-2, and pbs-3 subtypes.
 
     Uses per-metric quartile thresholds on mitochondrial read fraction,
     total RNA count, and gene count to assign each cell to a noise-cell
@@ -21,9 +21,9 @@ def classify_noise_subtypes(
 
     Subtype definitions (all thresholds derived from the input population):
 
-    - **damaged**: high mitochondrial fraction, low total RNA, low gene count.
-    - **dormant**: low mitochondrial fraction, low total RNA, moderate gene count.
-    - **multifunction**: moderate mitochondrial fraction, moderate total RNA,
+    - **pbs-1**: high mitochondrial fraction, low total RNA, low gene count.
+    - **pbs-2**: low mitochondrial fraction, low total RNA, moderate gene count.
+    - **pbs-3**: moderate mitochondrial fraction, moderate total RNA,
       high gene count.
 
     Args:
@@ -37,7 +37,7 @@ def classify_noise_subtypes(
 
     Returns:
         The same ``adata`` object with three new boolean columns appended to
-        ``adata.obs``: ``damaged``, ``dormant``, and ``multifunction``.
+        ``adata.obs``: ``pbs-1``, ``pbs-2``, and ``pbs-3``.
     """
     obs = adata.obs
 
@@ -61,16 +61,16 @@ def classify_noise_subtypes(
     mask_genes_high = obs["log1p_n_genes_by_counts"] >= gene_high
     mask_genes_moderate = (obs["log1p_n_genes_by_counts"] > gene_lo) & (obs["log1p_n_genes_by_counts"] < gene_high)
 
-    adata.obs["damaged"] = (mask_mito_high & mask_rna_low & mask_genes_low).astype(bool)
-    adata.obs["dormant"] = (mask_mito_low & mask_rna_low & mask_genes_moderate).astype(bool)
-    adata.obs["multifunction"] = (mask_mito_moderate & mask_rna_moderate & mask_genes_high).astype(bool)
+    adata.obs["pbs-1"] = (mask_mito_high & mask_rna_low & mask_genes_low).astype(bool)
+    adata.obs["pbs-2"] = (mask_mito_low & mask_rna_low & mask_genes_moderate).astype(bool)
+    adata.obs["pbs-3"] = (mask_mito_moderate & mask_rna_moderate & mask_genes_high).astype(bool)
 
     logger.debug(
-        "classified %d noise cells: %d damaged, %d dormant, %d multifunction",
+        "classified %d noise cells: %d pbs-1, %d pbs-2, %d pbs-3",
         adata.n_obs,
-        adata.obs["damaged"].sum(),
-        adata.obs["dormant"].sum(),
-        adata.obs["multifunction"].sum(),
+        adata.obs["pbs-1"].sum(),
+        adata.obs["pbs-2"].sum(),
+        adata.obs["pbs-3"].sum(),
     )
 
     return adata
@@ -89,7 +89,7 @@ def aggregate_noise_subtypes_by_cancer_type(
        :func:`classify_noise_subtypes` so thresholds and labels are derived
        exclusively from the noise population.
     2. Groups specimens by ``uns['cancer_type']``.
-    3. Sums damaged, dormant, multifunction, noise, and total cell counts.
+    3. Sums pbs-1, pbs-2, pbs-3, noise, and total cell counts.
     4. Normalises biological-signal counts to the total noise count and the
        noise count to the total cell count (expressed as percentages).
 
@@ -108,7 +108,7 @@ def aggregate_noise_subtypes_by_cancer_type(
 
     Returns:
         DataFrame indexed by annotated cancer-type labels with four columns:
-        ``damaged``, ``dormant``, ``multifunction`` (each as a percentage of
+        ``pbs-1``, ``pbs-2``, ``pbs-3`` (each as a percentage of
         total noise cells), and ``noise`` (as a percentage of all cells).
     """
     grouped: dict[str, list[AnnData]] = defaultdict(list)
@@ -128,16 +128,16 @@ def aggregate_noise_subtypes_by_cancer_type(
     counts: dict[str, tuple] = {}
     for label, specimens in annotated.items():
         counts[label] = (
-            sum(a.obs["damaged"].sum() for a in specimens),
-            sum(a.obs["dormant"].sum() for a in specimens),
-            sum(a.obs["multifunction"].sum() for a in specimens),
+            sum(a.obs["pbs-1"].sum() for a in specimens),
+            sum(a.obs["pbs-2"].sum() for a in specimens),
+            sum(a.obs["pbs-3"].sum() for a in specimens),
             sum(a.shape[0] for a in specimens),
             sum(a.uns["_total_cells"] for a in specimens),
         )
 
-    raw_df = pd.DataFrame(counts, index=["damaged", "dormant", "multifunction", "noise", "total"]).T
+    raw_df = pd.DataFrame(counts, index=["pbs-1", "pbs-2", "pbs-3", "noise", "total"]).T
 
-    norm_df = raw_df[["damaged", "dormant", "multifunction"]].div(raw_df["noise"], axis=0)
+    norm_df = raw_df[["pbs-1", "pbs-2", "pbs-3"]].div(raw_df["noise"], axis=0)
     norm_df["noise"] = raw_df["noise"].div(raw_df["total"], axis=0)
     norm_df = norm_df * 100
 

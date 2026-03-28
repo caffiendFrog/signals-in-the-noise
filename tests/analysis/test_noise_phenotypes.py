@@ -30,12 +30,12 @@ def _make_adata(n: int = 20, seed: int = 42) -> AnnData:
     return AnnData(obs=obs)
 
 
-def _make_adata_with_known_damaged(seed: int = 42) -> AnnData:
-    """Return an AnnData where cell_0 is guaranteed to be classified as damaged.
+def _make_adata_with_known_pbs_1(seed: int = 42) -> AnnData:
+    """Return an AnnData where cell_0 is guaranteed to be classified as pbs-1.
 
     cell_0 has extreme mito (99), extreme-low RNA (1), extreme-low genes (1).
     The remaining 19 cells span 10–90, placing their quartiles well clear of
-    the extremes so the outlier cell lands unambiguously in the damaged bin.
+    the extremes so the outlier cell lands unambiguously in the pbs-1 bin.
     """
     n = 20
     rng = np.random.default_rng(seed)
@@ -56,8 +56,8 @@ def _make_adata_with_known_damaged(seed: int = 42) -> AnnData:
     return AnnData(obs=obs)
 
 
-def _make_adata_with_known_dormant(seed: int = 42) -> AnnData:
-    """Return an AnnData where cell_0 is guaranteed to be classified as dormant.
+def _make_adata_with_known_pbs_2(seed: int = 42) -> AnnData:
+    """Return an AnnData where cell_0 is guaranteed to be classified as pbs-2.
 
     cell_0: extreme-low mito (1), extreme-low RNA (1), moderate genes (50).
     """
@@ -80,8 +80,8 @@ def _make_adata_with_known_dormant(seed: int = 42) -> AnnData:
     return AnnData(obs=obs)
 
 
-def _make_adata_with_known_multifunction(seed: int = 42) -> AnnData:
-    """Return an AnnData where cell_0 is guaranteed to be classified as multifunction.
+def _make_adata_with_known_pbs_3(seed: int = 42) -> AnnData:
+    """Return an AnnData where cell_0 is guaranteed to be classified as pbs-3.
 
     cell_0: moderate mito (50), moderate RNA (50), extreme-high genes (99).
     """
@@ -115,30 +115,30 @@ def test_classify_noise_subtypes_returns_same_adata_object():
     assert result is adata
 
 
-def test_classify_noise_subtypes_adds_damaged_column():
+def test_classify_noise_subtypes_adds_pbs_1_column():
     adata = _make_adata()
     classify_noise_subtypes(adata)
-    assert "damaged" in adata.obs.columns
+    assert "pbs-1" in adata.obs.columns
 
 
-def test_classify_noise_subtypes_adds_dormant_column():
+def test_classify_noise_subtypes_adds_pbs_2_column():
     adata = _make_adata()
     classify_noise_subtypes(adata)
-    assert "dormant" in adata.obs.columns
+    assert "pbs-2" in adata.obs.columns
 
 
-def test_classify_noise_subtypes_adds_multifunction_column():
+def test_classify_noise_subtypes_adds_pbs_3_column():
     adata = _make_adata()
     classify_noise_subtypes(adata)
-    assert "multifunction" in adata.obs.columns
+    assert "pbs-3" in adata.obs.columns
 
 
 def test_classify_noise_subtypes_columns_are_bool_dtype():
     adata = _make_adata()
     classify_noise_subtypes(adata)
-    assert adata.obs["damaged"].dtype == bool
-    assert adata.obs["dormant"].dtype == bool
-    assert adata.obs["multifunction"].dtype == bool
+    assert adata.obs["pbs-1"].dtype == bool
+    assert adata.obs["pbs-2"].dtype == bool
+    assert adata.obs["pbs-3"].dtype == bool
 
 
 def test_classify_noise_subtypes_preserves_obs_length():
@@ -153,22 +153,22 @@ def test_classify_noise_subtypes_preserves_obs_length():
 # ---------------------------------------------------------------------------
 
 
-def test_classify_noise_subtypes_identifies_damaged_cell():
-    adata = _make_adata_with_known_damaged()
+def test_classify_noise_subtypes_identifies_pbs_1_cell():
+    adata = _make_adata_with_known_pbs_1()
     classify_noise_subtypes(adata)
-    assert adata.obs.loc["cell_0", "damaged"]
+    assert adata.obs.loc["cell_0", "pbs-1"]
 
 
-def test_classify_noise_subtypes_identifies_dormant_cell():
-    adata = _make_adata_with_known_dormant()
+def test_classify_noise_subtypes_identifies_pbs_2_cell():
+    adata = _make_adata_with_known_pbs_2()
     classify_noise_subtypes(adata)
-    assert adata.obs.loc["cell_0", "dormant"]
+    assert adata.obs.loc["cell_0", "pbs-2"]
 
 
-def test_classify_noise_subtypes_identifies_multifunction_cell():
-    adata = _make_adata_with_known_multifunction()
+def test_classify_noise_subtypes_identifies_pbs_3_cell():
+    adata = _make_adata_with_known_pbs_3()
     classify_noise_subtypes(adata)
-    assert adata.obs.loc["cell_0", "multifunction"]
+    assert adata.obs.loc["cell_0", "pbs-3"]
 
 
 def test_classify_noise_subtypes_custom_quantiles_change_results():
@@ -177,8 +177,8 @@ def test_classify_noise_subtypes_custom_quantiles_change_results():
     adata_tight = _make_adata()
     classify_noise_subtypes(adata_default, q_low=0.25, q_high=0.75)
     classify_noise_subtypes(adata_tight, q_low=0.25, q_high=0.50)
-    # With a lower q_high threshold, at least as many cells are 'damaged'
-    assert adata_tight.obs["damaged"].sum() >= adata_default.obs["damaged"].sum()
+    # With a lower q_high threshold, at least as many cells are 'pbs-1'
+    assert adata_tight.obs["pbs-1"].sum() >= adata_default.obs["pbs-1"].sum()
 
 
 # ---------------------------------------------------------------------------
@@ -224,7 +224,7 @@ def test_aggregate_noise_subtypes_returns_dataframe():
 def test_aggregate_noise_subtypes_has_expected_columns():
     adatas = [_make_classified_adata("Luminal")]
     result = aggregate_noise_subtypes_by_cancer_type(adatas)
-    assert set(result.columns) == {"damaged", "dormant", "multifunction", "noise"}
+    assert set(result.columns) == {"pbs-1", "pbs-2", "pbs-3", "noise"}
 
 
 def test_aggregate_noise_subtypes_index_contains_cancer_type():
@@ -263,7 +263,7 @@ def test_aggregate_noise_subtypes_values_are_percentages():
     adatas = [_make_classified_adata("Luminal")]
     result = aggregate_noise_subtypes_by_cancer_type(adatas)
     # All percentage columns should be in [0, 100]
-    for col in ["damaged", "dormant", "multifunction", "noise"]:
+    for col in ["pbs-1", "pbs-2", "pbs-3", "noise"]:
         assert result[col].between(0, 100).all(), f"column {col!r} has values outside [0, 100]"
 
 
