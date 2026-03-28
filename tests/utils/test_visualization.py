@@ -10,7 +10,7 @@ import pytest
 import scipy.sparse as sp
 from anndata import AnnData
 
-from signals_in_the_noise.utils.visualization import plot_pathway_heatmap
+from signals_in_the_noise.utils.visualization import plot_pathway_heatmap, plot_score_heatmap
 
 
 # ---------------------------------------------------------------------------
@@ -75,4 +75,56 @@ def test_plot_pathway_heatmap_does_not_raise_with_single_panel():
     genes = [f"GENE_{i}" for i in range(4)]
     result = plot_pathway_heatmap(adata, "TEST_PATHWAY", genes, n_panels=1)
     assert len(result) == 1
+    plt.close("all")
+
+
+# ---------------------------------------------------------------------------
+# plot_score_heatmap helpers
+# ---------------------------------------------------------------------------
+
+
+def _make_score_adata(n_obs: int = 9, seed: int = 0) -> AnnData:
+    """Return a minimal AnnData with tp_score, cr_score, and specimen_id obs."""
+    rng = np.random.default_rng(seed)
+    obs = pd.DataFrame(
+        {
+            "tp_score": rng.uniform(-1.0, 1.0, n_obs),
+            "cr_score": rng.uniform(-1.0, 1.0, n_obs),
+            "specimen_id": ["specA", "specB", "specC"] * (n_obs // 3),
+        },
+        index=[f"cell_{i}" for i in range(n_obs)],
+    )
+    return AnnData(obs=obs)
+
+
+# ---------------------------------------------------------------------------
+# plot_score_heatmap tests
+# ---------------------------------------------------------------------------
+
+
+def test_plot_score_heatmap_returns_axes():
+    adata = _make_score_adata()
+    result = plot_score_heatmap(adata, score_columns=["tp_score", "cr_score"])
+    assert isinstance(result, matplotlib.axes.Axes)
+    plt.close("all")
+
+
+def test_plot_score_heatmap_uses_provided_axes():
+    adata = _make_score_adata()
+    fig, ax_in = plt.subplots()
+    ax_out = plot_score_heatmap(adata, score_columns=["tp_score", "cr_score"], ax=ax_in)
+    assert ax_out is ax_in
+    plt.close("all")
+
+
+def test_plot_score_heatmap_accepts_single_score_column():
+    adata = _make_score_adata()
+    result = plot_score_heatmap(adata, score_columns=["tp_score"])
+    assert result is not None
+    plt.close("all")
+
+
+def test_plot_score_heatmap_does_not_raise_on_valid_input():
+    adata = _make_score_adata()
+    plot_score_heatmap(adata, score_columns=["tp_score", "cr_score"])
     plt.close("all")

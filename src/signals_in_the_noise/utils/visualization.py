@@ -112,3 +112,48 @@ def plot_pathway_heatmap(
     axes[-1].set_ylabel("Specimen")
 
     return list(axes)
+
+
+def plot_score_heatmap(
+    adata: AnnData,
+    score_columns: list[str],
+    title: str = "Raw Gene Set Scores Grouped by Specimen ID",
+    cmap: str = "rocket",
+    figsize: tuple[float, float] = (60, 4),
+    ax: matplotlib.axes.Axes | None = None,
+) -> matplotlib.axes.Axes:
+    """Plot a transposed per-cell gene-set score heatmap sorted by specimen ID.
+
+    Cells are sorted by ``specimen_id`` so that cells from the same specimen
+    appear together on the x-axis.  The score matrix is transposed so that
+    score names appear on the y-axis and individual cells on the x-axis.
+
+    Args:
+        adata: AnnData object whose ``obs`` must contain all columns listed in
+            ``score_columns`` plus a ``specimen_id`` column.
+        score_columns: Names of the score columns in ``adata.obs`` to display.
+        title: Figure title string. Defaults to a generic scores-by-specimen label.
+        cmap: Colormap name passed to :func:`seaborn.heatmap`.
+            Defaults to ``'rocket'``.
+        figsize: ``(width, height)`` in inches used when creating a new figure.
+            Defaults to ``(60, 4)``.
+        ax: Existing axes to draw on.  When ``None`` a new figure is created.
+
+    Returns:
+        The axes with the heatmap drawn.
+    """
+    scores = adata.obs[score_columns]
+    specimen_ids = adata.obs["specimen_id"]
+    sorted_idx = specimen_ids.sort_values().index
+    sorted_scores = scores.loc[sorted_idx]
+
+    if ax is None:
+        _, ax = plt.subplots(figsize=figsize)
+
+    sns.heatmap(sorted_scores.T, cmap=cmap, square=True, xticklabels=False, ax=ax)
+    ax.set_aspect("auto")
+    ax.set_title(title)
+    ax.set_xlabel("Cells")
+    ax.set_ylabel("Gene Set")
+
+    return ax
