@@ -12,6 +12,7 @@ from anndata import AnnData
 
 from signals_in_the_noise.utils.visualization import (
     plot_empty_cell_violin_comparison,
+    plot_gene_signature_score_distribution,
     plot_gsea_nes_heatmap,
     plot_noise_subtype_comparison,
     plot_pathway_heatmap,
@@ -291,4 +292,38 @@ def test_plot_empty_cell_violin_comparison_does_not_raise_on_valid_input():
     noise = _make_violin_adata(seed=0)
     combined = _make_violin_adata(seed=1)
     plot_empty_cell_violin_comparison(noise, combined, groupby="specimen_id")
+    plt.close("all")
+
+
+# ---------------------------------------------------------------------------
+# plot_gene_signature_score_distribution tests
+# ---------------------------------------------------------------------------
+
+
+def test_plot_gene_signature_score_distribution_returns_axes():
+    scores = pd.Series([0.1, -0.3, 0.5, 0.2, -0.1, 0.4])
+    result = plot_gene_signature_score_distribution(scores, "basal")
+    assert isinstance(result, matplotlib.axes.Axes)
+    plt.close("all")
+
+
+def test_plot_gene_signature_score_distribution_uses_provided_axes():
+    scores = pd.Series([0.1, -0.3, 0.5, 0.2, -0.1, 0.4])
+    fig, ax_in = plt.subplots()
+    ax_out = plot_gene_signature_score_distribution(scores, "basal", ax=ax_in)
+    assert ax_out is ax_in
+    plt.close("all")
+
+
+def test_plot_gene_signature_score_distribution_xlabel_contains_signature_name():
+    scores = pd.Series([0.1, 0.2, 0.3])
+    fig, ax = plt.subplots()
+    plot_gene_signature_score_distribution(scores, "luminal_progenitor", ax=ax)
+    assert "luminal_progenitor" in ax.get_xlabel()
+    plt.close("all")
+
+
+def test_plot_gene_signature_score_distribution_does_not_raise_on_valid_input():
+    scores = pd.Series([0.1, -0.2, 0.3, -0.4, 0.5])
+    plot_gene_signature_score_distribution(scores, "basal")
     plt.close("all")

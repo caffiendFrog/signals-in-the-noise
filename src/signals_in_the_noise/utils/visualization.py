@@ -341,3 +341,35 @@ def plot_empty_cell_violin_comparison(
     sc.pl.violin(all_adata, groupby=groupby, ax=axes[1], **violin_kwargs)
 
     return list(axes)
+
+
+def plot_gene_signature_score_distribution(
+    scores: pd.Series,
+    signature_name: str,
+    bins: int = 50,
+    ax: matplotlib.axes.Axes | None = None,
+) -> matplotlib.axes.Axes:
+    """Plot a histogram with KDE and mean line for a single gene signature score.
+
+    Args:
+        scores: Series of per-cell gene signature score values, typically
+            extracted from ``adata.obs[f'score_{signature_name}']``.
+        signature_name: Human-readable name of the gene signature used to
+            generate axis labels and the plot title (e.g. ``'basal'``).
+        bins: Number of histogram bins.  Defaults to ``50``.
+        ax: Existing axes to draw on.  When ``None`` a new figure is created.
+
+    Returns:
+        The axes with the histogram, KDE, and mean line drawn.
+    """
+    if ax is None:
+        _, ax = plt.subplots()
+
+    sns.histplot(scores, kde=True, bins=bins, ax=ax)
+    ax.axvline(x=scores.mean(), color="red", linestyle="--", label="Mean")
+    ax.set_xlabel(f"{signature_name} score")
+    ax.set_ylabel("Cell count")
+    ax.set_title(f"Distribution of {signature_name} gene signature score")
+    ax.legend()
+
+    return ax
