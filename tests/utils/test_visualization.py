@@ -12,6 +12,7 @@ from anndata import AnnData
 
 from signals_in_the_noise.utils.visualization import (
     plot_gsea_nes_heatmap,
+    plot_noise_subtype_comparison,
     plot_pathway_heatmap,
     plot_score_heatmap,
 )
@@ -186,4 +187,51 @@ def test_plot_gsea_nes_heatmap_ytick_labels_contain_stars_for_significant_terms(
     assert any("***" in t for t in tick_texts)
     # HALLMARK_DNA_REPAIR has FDR 0.3 → no stars
     assert any("DNA_REPAIR" in t and "*" not in t for t in tick_texts)
+    plt.close("all")
+
+
+# ---------------------------------------------------------------------------
+# plot_noise_subtype_comparison helpers
+# ---------------------------------------------------------------------------
+
+
+def _make_norm_df() -> pd.DataFrame:
+    """Return a minimal normalised noise-subtype DataFrame."""
+    import pandas as pd
+    return pd.DataFrame(
+        {
+            "damaged": [15.0, 20.0],
+            "dormant": [10.0, 8.0],
+            "multifunction": [25.0, 18.0],
+            "noise": [30.0, 35.0],
+        },
+        index=["Luminal (2 specimens)", "Basal (3 specimens)"],
+    )
+
+
+# ---------------------------------------------------------------------------
+# plot_noise_subtype_comparison tests
+# ---------------------------------------------------------------------------
+
+
+def test_plot_noise_subtype_comparison_returns_two_axes():
+    df = _make_norm_df()
+    result = plot_noise_subtype_comparison(df)
+    assert len(result) == 2
+    assert all(isinstance(ax, matplotlib.axes.Axes) for ax in result)
+    plt.close("all")
+
+
+def test_plot_noise_subtype_comparison_uses_provided_axes():
+    df = _make_norm_df()
+    fig, (ax1_in, ax2_in) = plt.subplots(1, 2)
+    ax1_out, ax2_out = plot_noise_subtype_comparison(df, axes=(ax1_in, ax2_in))
+    assert ax1_out is ax1_in
+    assert ax2_out is ax2_in
+    plt.close("all")
+
+
+def test_plot_noise_subtype_comparison_does_not_raise_on_valid_input():
+    df = _make_norm_df()
+    plot_noise_subtype_comparison(df)
     plt.close("all")

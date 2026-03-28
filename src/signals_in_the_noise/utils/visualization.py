@@ -208,3 +208,83 @@ def plot_gsea_nes_heatmap(
     ax.set_title("GSEA Normalized Enrichment Score (NES) with Significance")
 
     return ax
+
+
+def plot_noise_subtype_comparison(
+    norm_df: pd.DataFrame,
+    figsize: tuple[float, float] = (13, 6),
+    signal_panel_ratio: float = 3.0,
+    axes: tuple[matplotlib.axes.Axes, matplotlib.axes.Axes] | None = None,
+) -> tuple[matplotlib.axes.Axes, matplotlib.axes.Axes]:
+    """Plot a paired bar chart comparing noise-subtype proportions across cancer types.
+
+    The left panel shows the percentage of noise cells that fall into each
+    biological-signal subtype (damaged, dormant, multifunction) for every
+    cancer type.  The right panel shows the percentage of all cells that are
+    noise cells.  A shared legend is placed to the right of the figure.
+
+    Args:
+        norm_df: Normalised summary DataFrame as returned by
+            :func:`~signals_in_the_noise.analysis.noise_phenotypes.aggregate_noise_subtypes_by_cancer_type`.
+            Must have an index of annotated cancer-type labels and columns
+            ``'damaged'``, ``'dormant'``, ``'multifunction'``, and ``'noise'``.
+        figsize: ``(width, height)`` in inches used when creating a new figure.
+            Defaults to ``(13, 6)``.
+        signal_panel_ratio: Width ratio of the signal panel relative to the
+            noise panel.  Defaults to ``3.0``.
+        axes: Pre-existing ``(ax1, ax2)`` tuple to draw on.  When ``None`` a
+            new figure is created.
+
+    Returns:
+        Tuple of ``(ax1, ax2)`` — the signal panel and the noise panel.
+    """
+    signal_cols = ["damaged", "dormant", "multifunction"]
+
+    long_signals = (
+        norm_df[signal_cols]
+        .reset_index()
+        .rename(columns={"index": "cancer type"})
+        .melt(id_vars="cancer type", var_name="potential signal", value_name="percentage of noise")
+    )
+    long_noise = (
+        norm_df[["noise"]]
+        .reset_index()
+        .rename(columns={"index": "cancer type"})
+        .melt(id_vars="cancer type", var_name="potential signal", value_name="percentage of noise")
+    )
+
+    if axes is None:
+        _, (ax1, ax2) = plt.subplots(
+            1, 2,
+            figsize=figsize,
+            gridspec_kw={"width_ratios": [signal_panel_ratio, 1]},
+            sharey=True,
+        )
+    else:
+        ax1, ax2 = axes
+
+    sns.barplot(data=long_signals, x="potential signal", y="percentage of noise", hue="cancer type", ax=ax1)
+    ax1.set_title('Potential Biological Signals In "Noise" Cells')
+    ax1.set_xlabel("")
+    ax1.set_ylabel("percentage")
+    ax1.get_legend().remove()
+
+    sns.barplot(data=long_noise, x="potential signal", y="percentage of noise", hue="cancer type", ax=ax2)
+    ax2.set_title('"Noise" Cells')
+    ax2.set_xlabel("")
+    ax2.set_ylabel("percentage")
+    ax2.get_legend().remove()
+
+    handles, labels = ax1.get_legend_handles_labels()
+    ax1.figure.legend(
+        handles, labels,
+        title="Breast Cancer Type",
+        loc="center right",
+        bbox_to_anchor=(1.05, 0.70),
+    )
+    ax1.figure.suptitle(
+        'Comparative Analysis of "Noise" cells Among Breast Cancer Subtypes',
+        fontsize=18,
+    )
+
+    return ax1, ax2
