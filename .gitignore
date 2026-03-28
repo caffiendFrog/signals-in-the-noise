@@ -1,22 +1,32 @@
-# Python
-__pycache__/
-
-# Virtual environment
-.venv*/
-venv/
-
-**/*.egg-info
-
-# Jupyter
-**/.ipynb_checkpoints/
-
-# PyCharm
-.idea/
-
-# Windows
-Thumbs.db
-
-# Data directories (large files; user-supplied inputs not tracked)
+# Data (except test fixtures)
 data/raw/
 data/processed/
 data/reference/
+data/outputs/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+dist/
+build/
+.env
+
+# Conda / virtual environments
+.conda/
+envs/
+.venv*/
+venv/
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb_checkpoints
+
+# IDE
+.vscode/settings.json
+.idea/
+
+# OS
+Thumbs.db
+desktop.ini

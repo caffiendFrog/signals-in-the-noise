@@ -19,6 +19,7 @@ The graded final report for this project can be found here: https://github.com/c
   * [5 — Verify the setup](#5--verify-the-setup)
   * [6 — Run the notebooks](#6--run-the-notebooks)
 * [Repository Structure](#repository-structure)
+* [Configuration](#configuration)
 * [References](#references)
 
 ---
@@ -205,7 +206,11 @@ signals-in-the-noise/
 ├── src/
 │   └── signals_in_the_noise/
 │       ├── config.py                   # project-wide path constants and helper functions
+│       ├── analysis/
+│       │   ├── noise_phenotypes.py     # noise-cell phenotype annotation logic
+│       │   └── statistics.py          # statistical comparison helpers
 │       ├── io/
+│       │   ├── gmt.py                  # GMT gene-set file parser
 │       │   └── tenx.py                 # 10x Genomics file reconstitution and AnnData loading
 │       ├── preprocessing/
 │       │   ├── base.py                 # Preprocessor base class and PreprocessorConfig dataclass
@@ -216,16 +221,21 @@ signals-in-the-noise/
 │           └── visualization.py        # matplotlib figure/axes grid helper
 ├── tests/
 │   ├── conftest.py                     # shared pytest fixtures
+│   ├── analysis/
+│   │   ├── test_noise_phenotypes.py
+│   │   └── test_statistics.py
 │   ├── functional/
 │   │   └── test_tenx_functional.py    # end-to-end tests using committed fixture files
 │   ├── io/
+│   │   ├── test_gmt.py
 │   │   └── test_tenx.py
 │   ├── preprocessing/
 │   │   ├── test_base.py
 │   │   └── test_gse161529.py
 │   ├── utils/
 │   │   ├── test_log.py
-│   │   └── test_logging_config.py
+│   │   ├── test_logging_config.py
+│   │   └── test_visualization.py
 │   └── test_config.py
 ├── notebooks/
 │   └── GSE161529/                      # numbered analysis notebooks (run in order)
@@ -247,6 +257,24 @@ signals-in-the-noise/
 ├── pyproject.toml                      # build metadata and pytest/ruff configuration
 └── README.md
 ```
+
+_[Back to Top](#contents)_
+
+---
+
+## Configuration
+
+All project-wide paths are resolved in `src/signals_in_the_noise/config.py`. It exposes two constants and two helper functions:
+
+| Name | Type | Description |
+|---|---|---|
+| `PROJECT_ROOT` | `Path` | Repository root (resolved at import time via `__file__`) |
+| `DATA_DIRECTORY` | `Path` | `<PROJECT_ROOT>/data/` |
+| `RESOURCES_DIRECTORY` | `Path` | `<PROJECT_ROOT>/resources/` |
+| `get_data_path(subpath)` | function | Returns `DATA_DIRECTORY / subpath`, or `DATA_DIRECTORY` if `subpath` is `None` |
+| `get_resources_path(subpath)` | function | Returns `RESOURCES_DIRECTORY / subpath`, or `RESOURCES_DIRECTORY` if `subpath` is `None` |
+
+There are no hardcoded absolute paths anywhere in the source code. Every file I/O operation resolves its path through one of these helpers.
 
 _[Back to Top](#contents)_
 
