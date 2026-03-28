@@ -10,7 +10,11 @@ import pytest
 import scipy.sparse as sp
 from anndata import AnnData
 
-from signals_in_the_noise.utils.visualization import plot_pathway_heatmap, plot_score_heatmap
+from signals_in_the_noise.utils.visualization import (
+    plot_gsea_nes_heatmap,
+    plot_pathway_heatmap,
+    plot_score_heatmap,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -127,4 +131,59 @@ def test_plot_score_heatmap_accepts_single_score_column():
 def test_plot_score_heatmap_does_not_raise_on_valid_input():
     adata = _make_score_adata()
     plot_score_heatmap(adata, score_columns=["tp_score", "cr_score"])
+    plt.close("all")
+
+
+# ---------------------------------------------------------------------------
+# plot_gsea_nes_heatmap helpers
+# ---------------------------------------------------------------------------
+
+
+def _make_gsea_df() -> pd.DataFrame:
+    """Return a minimal GSEA results DataFrame."""
+    return pd.DataFrame(
+        {
+            "Term": ["HALLMARK_G2M_CHECKPOINT", "HALLMARK_E2F_TARGETS", "HALLMARK_DNA_REPAIR"],
+            "NES": [1.8, -1.2, 0.5],
+            "FDR q-val": [0.005, 0.04, 0.3],
+        }
+    )
+
+
+# ---------------------------------------------------------------------------
+# plot_gsea_nes_heatmap tests
+# ---------------------------------------------------------------------------
+
+
+def test_plot_gsea_nes_heatmap_returns_axes():
+    df = _make_gsea_df()
+    result = plot_gsea_nes_heatmap(df)
+    assert isinstance(result, matplotlib.axes.Axes)
+    plt.close("all")
+
+
+def test_plot_gsea_nes_heatmap_uses_provided_axes():
+    df = _make_gsea_df()
+    fig, ax_in = plt.subplots()
+    ax_out = plot_gsea_nes_heatmap(df, ax=ax_in)
+    assert ax_out is ax_in
+    plt.close("all")
+
+
+def test_plot_gsea_nes_heatmap_does_not_raise_on_valid_input():
+    df = _make_gsea_df()
+    plot_gsea_nes_heatmap(df)
+    plt.close("all")
+
+
+def test_plot_gsea_nes_heatmap_ytick_labels_contain_stars_for_significant_terms():
+    """Significant terms (FDR < 0.1) should have star suffixes on the y-axis."""
+    df = _make_gsea_df()
+    fig, ax = plt.subplots()
+    plot_gsea_nes_heatmap(df, ax=ax)
+    tick_texts = [t.get_text() for t in ax.get_yticklabels()]
+    # HALLMARK_G2M_CHECKPOINT has FDR 0.005 → " ***"
+    assert any("***" in t for t in tick_texts)
+    # HALLMARK_DNA_REPAIR has FDR 0.3 → no stars
+    assert any("DNA_REPAIR" in t and "*" not in t for t in tick_texts)
     plt.close("all")

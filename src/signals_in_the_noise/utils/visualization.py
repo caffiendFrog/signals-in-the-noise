@@ -8,6 +8,8 @@ import pandas as pd
 import seaborn as sns
 from anndata import AnnData
 
+from signals_in_the_noise.analysis.statistics import fdr_to_stars
+
 logger = logging.getLogger(__name__)
 
 
@@ -155,5 +157,54 @@ def plot_score_heatmap(
     ax.set_title(title)
     ax.set_xlabel("Cells")
     ax.set_ylabel("Gene Set")
+
+    return ax
+
+
+def plot_gsea_nes_heatmap(
+    gsea_results_df: pd.DataFrame,
+    cmap: str = "coolwarm",
+    label_fontsize: int = 10,
+    fig_width: float = 6.0,
+    bar_height: float = 0.5,
+    ax: matplotlib.axes.Axes | None = None,
+) -> matplotlib.axes.Axes:
+    """Plot a GSEA NES heatmap with FDR significance annotations on the y-axis.
+
+    Gene set terms are shown on the y-axis; the single-column heatmap encodes
+    the Normalized Enrichment Score (NES) by colour.  Significance stars from
+    :func:`~signals_in_the_noise.analysis.statistics.fdr_to_stars` are
+    appended to each term label.
+
+    Args:
+        gsea_results_df: DataFrame with at least three columns: ``'Term'``
+            (gene set name), ``'NES'`` (normalized enrichment score), and
+            ``'FDR q-val'`` (FDR-corrected q-value).  Typically the
+            ``res2d`` attribute of a :mod:`gseapy` result object.
+        cmap: Diverging colormap name centered at zero.  Defaults to
+            ``'coolwarm'``.
+        label_fontsize: Font size for y-axis tick labels.  Defaults to ``10``.
+        fig_width: Width of the figure in inches when ``ax`` is ``None``.
+            Defaults to ``6.0``.
+        bar_height: Height per gene-set row in inches, used to compute the
+            figure height when ``ax`` is ``None``.  Defaults to ``0.5``.
+        ax: Existing axes to draw on.  When ``None`` a new figure is created
+            with height ``len(terms) * bar_height``.
+
+    Returns:
+        The axes with the heatmap drawn.
+    """
+    heatmap_data = gsea_results_df.pivot_table(index="Term", values="NES")
+    heatmap_data = heatmap_data.apply(pd.to_numeric, errors="coerce")
+
+    fdr_map = gsea_results_df.set_index("Term")["FDR q-val"].apply(fdr_to_stars).to_dict()
+    annotated_labels = [term + fdr_map.get(term, "") for term in heatmap_data.index]
+
+    if ax is None:
+        _, ax = plt.subplots(figsize=(fig_width, len(heatmap_data) * bar_height))
+
+    sns.heatmap(heatmap_data, annot=True, cmap=cmap, center=0, ax=ax)
+    ax.set_yticklabels(annotated_labels, rotation=0, fontsize=label_fontsize)
+    ax.set_title("GSEA Normalized Enrichment Score (NES) with Significance")
 
     return ax
