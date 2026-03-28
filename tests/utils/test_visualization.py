@@ -11,6 +11,7 @@ import scipy.sparse as sp
 from anndata import AnnData
 
 from signals_in_the_noise.utils.visualization import (
+    plot_empty_cell_violin_comparison,
     plot_gsea_nes_heatmap,
     plot_noise_subtype_comparison,
     plot_pathway_heatmap,
@@ -234,4 +235,60 @@ def test_plot_noise_subtype_comparison_uses_provided_axes():
 def test_plot_noise_subtype_comparison_does_not_raise_on_valid_input():
     df = _make_norm_df()
     plot_noise_subtype_comparison(df)
+    plt.close("all")
+
+
+# ---------------------------------------------------------------------------
+# plot_empty_cell_violin_comparison helpers
+# ---------------------------------------------------------------------------
+
+
+def _make_violin_adata(n_obs: int = 12, seed: int = 0) -> AnnData:
+    """Return a minimal AnnData suitable for sc.pl.violin with zero_mito groupby specimen_id."""
+    import scipy.sparse as sp_scipy
+    rng = np.random.default_rng(seed)
+    X = sp_scipy.csr_matrix(rng.integers(0, 5, size=(n_obs, 5)).astype(float))
+    obs = pd.DataFrame(
+        {
+            "zero_mito": rng.integers(0, 2, n_obs).astype(float),
+            "specimen_id": ["specA", "specB", "specC"] * (n_obs // 3),
+        },
+        index=[f"cell_{i}" for i in range(n_obs)],
+    )
+    adata = AnnData(X=X, obs=obs)
+    adata.var_names = [f"GENE_{i}" for i in range(5)]
+    return adata
+
+
+# ---------------------------------------------------------------------------
+# plot_empty_cell_violin_comparison tests
+# ---------------------------------------------------------------------------
+
+
+def test_plot_empty_cell_violin_comparison_returns_list_of_axes():
+    noise = _make_violin_adata(seed=0)
+    combined = _make_violin_adata(seed=1)
+    result = plot_empty_cell_violin_comparison(noise, combined, groupby="specimen_id")
+    assert isinstance(result, list)
+    assert len(result) == 2
+    assert all(isinstance(ax, matplotlib.axes.Axes) for ax in result)
+    plt.close("all")
+
+
+def test_plot_empty_cell_violin_comparison_uses_provided_axes():
+    noise = _make_violin_adata(seed=0)
+    combined = _make_violin_adata(seed=1)
+    fig, (ax1_in, ax2_in) = plt.subplots(1, 2)
+    result = plot_empty_cell_violin_comparison(
+        noise, combined, groupby="specimen_id", axes=[ax1_in, ax2_in]
+    )
+    assert result[0] is ax1_in
+    assert result[1] is ax2_in
+    plt.close("all")
+
+
+def test_plot_empty_cell_violin_comparison_does_not_raise_on_valid_input():
+    noise = _make_violin_adata(seed=0)
+    combined = _make_violin_adata(seed=1)
+    plot_empty_cell_violin_comparison(noise, combined, groupby="specimen_id")
     plt.close("all")

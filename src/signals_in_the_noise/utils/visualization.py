@@ -5,6 +5,7 @@ import matplotlib.axes
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import scanpy as sc
 import seaborn as sns
 from anndata import AnnData
 
@@ -288,3 +289,55 @@ def plot_noise_subtype_comparison(
     )
 
     return ax1, ax2
+
+
+def plot_empty_cell_violin_comparison(
+    noise_adata: AnnData,
+    all_adata: AnnData,
+    groupby: str,
+    metric: str = "zero_mito",
+    ylabel: str = "Empty State (1 = empty, 0 = not empty)",
+    subplot_size: tuple[int, int] = (7, 8),
+    axes: list[matplotlib.axes.Axes] | None = None,
+) -> list[matplotlib.axes.Axes]:
+    """Plot side-by-side violin distributions of an empty-cell metric by group.
+
+    Renders two panels: the left shows the distribution for noise cells only;
+    the right shows the distribution across all cells (noise + real combined).
+    Both panels are grouped by ``groupby`` and share the same y-axis metric.
+
+    Args:
+        noise_adata: AnnData containing only noise cells.
+        all_adata: AnnData containing all cells (noise and real combined).
+        groupby: ``obs`` column name to use as the grouping variable on the
+            x-axis (e.g. ``'hormonal_status'``, ``'cancer_type'``).
+        metric: ``obs`` column name of the binary empty-cell indicator to
+            visualise.  Defaults to ``'zero_mito'``.
+        ylabel: Y-axis label shared across both panels.  Defaults to
+            ``'Empty State (1 = empty, 0 = not empty)'``.
+        subplot_size: ``(width, height)`` in inches for each sub-panel.
+            Defaults to ``(7, 8)``.
+        axes: Pre-existing list of two axes to draw on.  When ``None`` a new
+            figure is created via :func:`get_figure_axes`.
+
+    Returns:
+        List of the two axes ``[noise_ax, all_ax]``.
+    """
+    violin_kwargs = {
+        "show": False,
+        "keys": metric,
+        "rotation": 90,
+        "ylabel": ylabel,
+    }
+
+    if axes is None:
+        _, axes = get_figure_axes(2, num_cols=2, subplot_size=subplot_size)
+        axes[0].figure.suptitle("Distribution of Zero Mitochondria")
+
+    axes[0].set_title('"Noise" cells')
+    axes[1].set_title("All cells")
+
+    sc.pl.violin(noise_adata, groupby=groupby, ax=axes[0], **violin_kwargs)
+    sc.pl.violin(all_adata, groupby=groupby, ax=axes[1], **violin_kwargs)
+
+    return list(axes)
