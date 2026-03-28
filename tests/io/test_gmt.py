@@ -2,7 +2,7 @@
 
 import pytest
 
-from signals_in_the_noise.io.gmt import load_gmt
+from signals_in_the_noise.io.gmt import combine_gmt_files, load_gmt
 
 
 def _write_gmt(tmp_path, name: str, description: str, genes: list[str]) -> object:
@@ -77,3 +77,62 @@ def test_load_gmt_raises_on_file_with_fewer_than_three_tokens(tmp_path):
     gmt_file.write_text("PATHWAY\tdescription", encoding="utf-8")
     with pytest.raises(ValueError, match="fewer than 3 tokens"):
         load_gmt(gmt_file)
+
+
+# ---------------------------------------------------------------------------
+# combine_gmt_files tests
+# ---------------------------------------------------------------------------
+
+
+def _write_simple_gmt(path, name: str) -> None:
+    """Write a minimal single-entry GMT file."""
+    path.write_text(f"{name}\thttp://example.com\tGENE_A\tGENE_B\n", encoding="utf-8")
+
+
+def test_combine_gmt_files_returns_output_path(tmp_path):
+    a = tmp_path / "a.gmt"
+    b = tmp_path / "b.gmt"
+    _write_simple_gmt(a, "PATHWAY_A")
+    _write_simple_gmt(b, "PATHWAY_B")
+    out = tmp_path / "combined.gmt"
+    result = combine_gmt_files([a, b], out)
+    assert result == out
+
+
+def test_combine_gmt_files_creates_output_file(tmp_path):
+    a = tmp_path / "a.gmt"
+    _write_simple_gmt(a, "PATHWAY_A")
+    out = tmp_path / "combined.gmt"
+    combine_gmt_files([a], out)
+    assert out.exists()
+
+
+def test_combine_gmt_files_content_contains_all_input_content(tmp_path):
+    a = tmp_path / "a.gmt"
+    b = tmp_path / "b.gmt"
+    _write_simple_gmt(a, "PATHWAY_A")
+    _write_simple_gmt(b, "PATHWAY_B")
+    out = tmp_path / "combined.gmt"
+    combine_gmt_files([a, b], out)
+    combined = out.read_text(encoding="utf-8")
+    assert "PATHWAY_A" in combined
+    assert "PATHWAY_B" in combined
+
+
+def test_combine_gmt_files_skips_when_output_exists_and_no_overwrite(tmp_path):
+    a = tmp_path / "a.gmt"
+    _write_simple_gmt(a, "PATHWAY_A")
+    out = tmp_path / "combined.gmt"
+    out.write_text("existing content", encoding="utf-8")
+    combine_gmt_files([a], out, overwrite=False)
+    assert out.read_text(encoding="utf-8") == "existing content"
+
+
+def test_combine_gmt_files_overwrites_when_overwrite_true(tmp_path):
+    a = tmp_path / "a.gmt"
+    _write_simple_gmt(a, "PATHWAY_A")
+    out = tmp_path / "combined.gmt"
+    out.write_text("existing content", encoding="utf-8")
+    combine_gmt_files([a], out, overwrite=True)
+    assert "existing content" not in out.read_text(encoding="utf-8")
+    assert "PATHWAY_A" in out.read_text(encoding="utf-8")
