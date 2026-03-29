@@ -273,6 +273,14 @@ def test_aggregate_noise_subtypes_empty_input_returns_empty_dataframe():
     assert len(result) == 0
 
 
+def test_aggregate_noise_subtypes_zero_noise_produces_zero_percentages():
+    """Cancer types with zero noise cells must yield 0% subtypes, not NaN or inf."""
+    adata = _make_classified_adata("Luminal", noise_fraction=0.0)
+    result = aggregate_noise_subtypes_by_cancer_type([adata])
+    assert not result.isnull().any().any(), "result contains NaN"
+    assert result[["damaged", "dormant", "multifunction"]].eq(0.0).all().all()
+
+
 def test_aggregate_noise_subtypes_excludes_non_noise_from_subtype_counts():
     """Non-noise cells must not inflate subtype counts beyond the noise population.
 

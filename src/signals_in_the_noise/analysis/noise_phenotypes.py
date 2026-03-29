@@ -141,6 +141,14 @@ def aggregate_noise_subtypes_by_cancer_type(
     norm_df["noise"] = raw_df["noise"].div(raw_df["total"], axis=0)
     norm_df = norm_df * 100
 
+    zero_noise_labels = list(raw_df.index[raw_df["noise"] == 0])
+    if zero_noise_labels:
+        logger.warning(
+            "cancer type(s) %s have zero noise cells; subtype percentages set to 0",
+            zero_noise_labels,
+        )
+    norm_df = norm_df.fillna(0.0)
+
     logger.debug(
         "aggregated noise subtypes for %d cancer type(s) from %d specimens",
         len(annotated),
