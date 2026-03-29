@@ -32,7 +32,6 @@ def test_load_gmt_returns_gene_strings(tmp_path):
 
 
 def test_load_gmt_skips_pathway_name_and_description(tmp_path):
-    """GMT descriptions are URLs (no spaces); split() handles them as a single token."""
     genes = ["GENE_A", "GENE_B", "GENE_C"]
     path = _write_gmt(tmp_path, "PATHWAY_NAME", "http://example.com/pathway", genes)
     result = load_gmt(path)
@@ -62,6 +61,15 @@ def test_load_gmt_accepts_path_like_string(tmp_path):
     assert result == ["GENE1"]
 
 
+def test_load_gmt_description_with_spaces(tmp_path):
+    """A description containing spaces must not pollute the gene list."""
+    content = "PATHWAY_NAME\tGenes involved in cell cycle\tBRCA1\tTP53\n"
+    gmt_file = tmp_path / "spaced.gmt"
+    gmt_file.write_text(content, encoding="utf-8")
+    result = load_gmt(gmt_file)
+    assert result == ["BRCA1", "TP53"]
+
+
 # ---------------------------------------------------------------------------
 # Error tests
 # ---------------------------------------------------------------------------
@@ -75,7 +83,7 @@ def test_load_gmt_raises_on_missing_file(tmp_path):
 def test_load_gmt_raises_on_file_with_fewer_than_three_tokens(tmp_path):
     gmt_file = tmp_path / "bad.gmt"
     gmt_file.write_text("PATHWAY\tdescription", encoding="utf-8")
-    with pytest.raises(ValueError, match="fewer than 3 tokens"):
+    with pytest.raises(ValueError, match="fewer than 3 tab-delimited fields"):
         load_gmt(gmt_file)
 
 

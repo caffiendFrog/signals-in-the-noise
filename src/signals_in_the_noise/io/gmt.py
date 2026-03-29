@@ -22,14 +22,15 @@ def load_gmt(path: Path) -> list[str]:
 
     Raises:
         FileNotFoundError: If the file does not exist.
-        ValueError: If the file contains fewer than three whitespace-separated
-            tokens (i.e. is missing gene entries).
+        ValueError: If the first line contains fewer than three tab-delimited
+            fields (i.e. is missing gene entries).
     """
     path = Path(path)
-    tokens = path.read_text(encoding="utf-8").split()
+    lines = path.read_text(encoding="utf-8").splitlines()
+    tokens = lines[0].split('\t') if lines else []
     if len(tokens) < 3:
         raise ValueError(
-            f"GMT file {path.name!r} has fewer than 3 tokens; expected at least "
+            f"GMT file {path.name!r} has fewer than 3 tab-delimited fields; expected at least "
             "a pathway name, a description, and one gene."
         )
     genes = tokens[2:]
