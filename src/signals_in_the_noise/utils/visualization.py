@@ -109,6 +109,11 @@ def plot_pathway_heatmap(
             super_title=f"Mean Raw Expressions of Genes Grouped by Specimen ID\n{pathway_name}",
         )
 
+    if len(axes) != n_panels:
+        raise ValueError(
+            f"Expected {n_panels} axes to match n_panels, got {len(axes)}."
+        )
+
     for ax, heatmap_df in zip(axes, panel_dfs):
         sns.heatmap(heatmap_df, cmap=cmap, ax=ax, cbar_kws={"pad": 0.02})
 

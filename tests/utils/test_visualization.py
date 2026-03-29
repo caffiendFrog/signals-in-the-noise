@@ -105,6 +105,16 @@ def test_plot_pathway_heatmap_all_genes_absent():
     plt.close("all")
 
 
+def test_plot_pathway_heatmap_raises_on_axes_length_mismatch():
+    """Providing the wrong number of axes must raise ValueError immediately."""
+    adata = _make_adata()
+    genes = [f"GENE_{i}" for i in range(6)]
+    fig, wrong_ax = plt.subplots(1, 1)  # 1 axis, but n_panels defaults to 2
+    with pytest.raises(ValueError, match="n_panels"):
+        plot_pathway_heatmap(adata, "TEST_PATHWAY", genes, axes=[wrong_ax])
+    plt.close("all")
+
+
 # ---------------------------------------------------------------------------
 # plot_score_heatmap helpers
 # ---------------------------------------------------------------------------
