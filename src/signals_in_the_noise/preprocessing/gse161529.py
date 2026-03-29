@@ -30,8 +30,8 @@ class GSE161529(Preprocessor):
     """
 
     STUDY_ID = "GSE161529"
-    RAW_DATA_DIRECTORY = f"raw/{STUDY_ID}_RAW"
-    FEATURES_FILENAME = f"raw/{STUDY_ID}_features.tsv.gz"
+    RAW_DATA_DIRECTORY = f"{STUDY_ID}_RAW"
+    FEATURES_FILENAME = f"{STUDY_ID}_features.tsv.gz"
 
     EXPECTED_MISMATCHES = [
         "GSM4909296_ER-MH0001.h5ad",
@@ -104,8 +104,8 @@ class GSE161529(Preprocessor):
 
     def __init__(self):
         super().__init__(self.STUDY_ID)
-        raw_data_directory = get_data_path(self.RAW_DATA_DIRECTORY)
-        features_filename = get_data_path(self.FEATURES_FILENAME)
+        raw_data_directory = get_data_path("raw") / self.RAW_DATA_DIRECTORY
+        features_filename = get_data_path("raw") / self.FEATURES_FILENAME
         raw_data = TenX(str(raw_data_directory), features_filename=str(features_filename))
         self.cache_directory_path = Path(raw_data.cache_directory_name)
         if not self.is_data_loaded:

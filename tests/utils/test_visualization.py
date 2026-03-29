@@ -235,9 +235,9 @@ def _make_norm_df() -> pd.DataFrame:
     import pandas as pd
     return pd.DataFrame(
         {
-            "damaged": [15.0, 20.0],
-            "dormant": [10.0, 8.0],
-            "multifunction": [25.0, 18.0],
+            "pbs-1": [15.0, 20.0],
+            "pbs-2": [10.0, 8.0],
+            "pbs-3": [25.0, 18.0],
             "noise": [30.0, 35.0],
         },
         index=["Luminal (2 specimens)", "Basal (3 specimens)"],

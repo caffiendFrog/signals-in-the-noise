@@ -233,7 +233,7 @@ def plot_noise_subtype_comparison(
     """Plot a paired bar chart comparing noise-subtype proportions across cancer types.
 
     The left panel shows the percentage of noise cells that fall into each
-    biological-signal subtype (damaged, dormant, multifunction) for every
+    biological-signal subtype (pbs-1, pbs-2, pbs-3) for every
     cancer type.  The right panel shows the percentage of all cells that are
     noise cells.  A shared legend is placed to the right of the figure.
 
@@ -241,7 +241,7 @@ def plot_noise_subtype_comparison(
         norm_df: Normalised summary DataFrame as returned by
             :func:`~signals_in_the_noise.analysis.noise_phenotypes.aggregate_noise_subtypes_by_cancer_type`.
             Must have an index of annotated cancer-type labels and columns
-            ``'damaged'``, ``'dormant'``, ``'multifunction'``, and ``'noise'``.
+            ``'pbs-1'``, ``'pbs-2'``, ``'pbs-3'``, and ``'noise'``.
         figsize: ``(width, height)`` in inches used when creating a new figure.
             Defaults to ``(13, 6)``.
         signal_panel_ratio: Width ratio of the signal panel relative to the
@@ -252,7 +252,7 @@ def plot_noise_subtype_comparison(
     Returns:
         Tuple of ``(ax1, ax2)`` — the signal panel and the noise panel.
     """
-    signal_cols = ["damaged", "dormant", "multifunction"]
+    signal_cols = ["pbs-1", "pbs-2", "pbs-3"]
 
     long_signals = (
         norm_df[signal_cols]

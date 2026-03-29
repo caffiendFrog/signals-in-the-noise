@@ -19,6 +19,7 @@ The graded final report for this project can be found here: https://github.com/c
   * [5 — Verify the setup](#5--verify-the-setup)
   * [6 — Run the notebooks](#6--run-the-notebooks)
 * [Repository Structure](#repository-structure)
+* [Configuration](#configuration)
 * [References](#references)
 
 ---
@@ -35,17 +36,27 @@ _[Back to Top](#contents)_
 
 This project is motivated by the causal ambiguity of identifying thresholds for quality control (QC) metrics in the pre-processing workflow. Specifically, thresholds for scRNA-seq are set using biological assumptions, while those same or related assumptions are being evaluated by scRNA-seq. One such biological assumption is that cells with higher total RNA are metabolically healthy. As a result, the QC process often prioritizes these cells, while treating cells with low total RNA counts as technical artifacts to be filtered out [3, 4]. This approach, while effective for minimizing noise from ambient RNA contamination, risks eliminating biologically meaningful signals.
 
-| Feature to Threshold      | Filtered by QC Metric | Targeted by DDR | Dormant Cells                 |
-|---------------------------|------------------------|-----------------|-------------------------------|
-| Low total RNA content     | ✅ Damaged cell        | ⚠️ Depends      | ✅ Viable but quiet cell       |
-| High total RNA content    | ✅ Degraded cell       | ⚠️ Depends      | ✅ Limited active gene expression |
-| Low number of genes       | ✅ Technical artifact  | ⚠️ Depends      | ✅ Limited active gene expression |
-| Low mitochondrial RNA %   | ❌ Not filtered out    | ✅ Damaged cell  | ✅ Limited energy needs        |
-| High mitochondrial RNA %  | ✅ Damaged cell        | ✅ Damaged cell  | ❌ Not dormant                 |
+| Feature to Threshold      | QC Outcome              | Damaged (PBS-1)          | Dormant (PBS-2)                    |
+|---------------------------|-------------------------|--------------------------|------------------------------------|
+| Low total RNA content     | ✅ Filtered out         | ⚠️ Depends on context    | ✅ Viable but quiet cell            |
+| High total RNA content    | ✅ Filtered out         | ⚠️ Depends on context    | ✅ Limited active gene expression   |
+| Low number of genes       | ✅ Filtered out         | ⚠️ Depends on context    | ✅ Limited active gene expression   |
+| Low mitochondrial RNA %   | ❌ Not filtered out     | ❌ Not characteristic    | ✅ Limited energy needs             |
+| High mitochondrial RNA %  | ✅ Filtered out         | ✅ Key marker             | ❌ Not characteristic               |
 
-*Table 1. Summary of QC metric thresholds and how they correspond to different kinds of cells.*
+*Table 1. Summary of QC metric thresholds and their approximate correspondence to potential biological signal subtypes.*
 
 **Legend:** ✅ characteristic • ❌ not a characteristic • ⚠️ might be a characteristic (context-dependent)
+
+Cells exhibiting co-occurring QC metric extremes may represent biologically meaningful states rather than technical artifacts. We generalize these as **Potential Biological Signals (PBS)**, each assigned a descriptive name. A third subtype — **multifunction (PBS-3)** — is characterized by moderate mitochondrial fraction, moderate total RNA, and high gene count, and is not filtered by standard QC. The approximate PBS mapping is:
+
+| PBS Label | Descriptive Name | Mitochondrial RNA %  | Total RNA    | Gene Count   |
+|-----------|------------------|----------------------|--------------|--------------|
+| PBS-1     | Damaged          | High (≥ Q75)         | Low (≤ Q25)  | Low (≤ Q25)  |
+| PBS-2     | Dormant          | Low (≤ Q25)          | Low (≤ Q25)  | Moderate     |
+| PBS-3     | Multifunction    | Moderate (Q25–Q75)   | Moderate     | High (≥ Q75) |
+
+*Table 2. Approximate mapping of PBS labels to descriptive subtype names and defining QC metric profiles. Thresholds are derived from the quartile distribution of the noise-cell population.*
 
 _[Back to Top](#contents)_
 
@@ -132,10 +143,10 @@ data/raw/
     GSE161529_features.tsv.gz    ← shared gene features file
 ```
 
-You will also need to place the supplementary Excel files provided by the authors into `data/reference/`:
+You will also need to place the supplementary Excel files provided by the authors into `resources`:
 
 ```
-data/reference/
+resources/
     GSE161529/
         table_supplementary_1.xlsx
         table_supplementary_2.xlsx
@@ -156,7 +167,7 @@ pytest
 All tests should pass. Expected output:
 
 ```
-72 passed in ~10s
+143 passed in ~5.48s
 ```
 
 _[Back to Top](#contents)_
@@ -205,7 +216,11 @@ signals-in-the-noise/
 ├── src/
 │   └── signals_in_the_noise/
 │       ├── config.py                   # project-wide path constants and helper functions
+│       ├── analysis/
+│       │   ├── noise_phenotypes.py     # noise-cell phenotype annotation logic
+│       │   └── statistics.py          # statistical comparison helpers
 │       ├── io/
+│       │   ├── gmt.py                  # GMT gene-set file parser
 │       │   └── tenx.py                 # 10x Genomics file reconstitution and AnnData loading
 │       ├── preprocessing/
 │       │   ├── base.py                 # Preprocessor base class and PreprocessorConfig dataclass
@@ -216,16 +231,21 @@ signals-in-the-noise/
 │           └── visualization.py        # matplotlib figure/axes grid helper
 ├── tests/
 │   ├── conftest.py                     # shared pytest fixtures
+│   ├── analysis/
+│   │   ├── test_noise_phenotypes.py
+│   │   └── test_statistics.py
 │   ├── functional/
 │   │   └── test_tenx_functional.py    # end-to-end tests using committed fixture files
 │   ├── io/
+│   │   ├── test_gmt.py
 │   │   └── test_tenx.py
 │   ├── preprocessing/
 │   │   ├── test_base.py
 │   │   └── test_gse161529.py
 │   ├── utils/
 │   │   ├── test_log.py
-│   │   └── test_logging_config.py
+│   │   ├── test_logging_config.py
+│   │   └── test_visualization.py
 │   └── test_config.py
 ├── notebooks/
 │   └── GSE161529/                      # numbered analysis notebooks (run in order)
@@ -247,6 +267,24 @@ signals-in-the-noise/
 ├── pyproject.toml                      # build metadata and pytest/ruff configuration
 └── README.md
 ```
+
+_[Back to Top](#contents)_
+
+---
+
+## Configuration
+
+All project-wide paths are resolved in `src/signals_in_the_noise/config.py`. It exposes two constants and two helper functions:
+
+| Name | Type | Description |
+|---|---|---|
+| `PROJECT_ROOT` | `Path` | Repository root (resolved at import time via `__file__`) |
+| `DATA_DIRECTORY` | `Path` | `<PROJECT_ROOT>/data/` |
+| `RESOURCES_DIRECTORY` | `Path` | `<PROJECT_ROOT>/resources/` |
+| `get_data_path(subpath)` | function | Returns `DATA_DIRECTORY / subpath`, or `DATA_DIRECTORY` if `subpath` is `None` |
+| `get_resources_path(subpath)` | function | Returns `RESOURCES_DIRECTORY / subpath`, or `RESOURCES_DIRECTORY` if `subpath` is `None` |
+
+There are no hardcoded absolute paths anywhere in the source code. Every file I/O operation resolves its path through one of these helpers.
 
 _[Back to Top](#contents)_
 
