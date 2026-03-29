@@ -85,7 +85,9 @@ def aggregate_noise_subtypes_by_cancer_type(
     For each AnnData in ``adatas`` whose ``uns['cell_population']`` matches
     ``cell_population_filter``:
 
-    1. Applies :func:`classify_noise_subtypes` to label each cell.
+    1. Subsets to noise cells (``is_noise == 1``) and applies
+       :func:`classify_noise_subtypes` so thresholds and labels are derived
+       exclusively from the noise population.
     2. Groups specimens by ``uns['cancer_type']``.
     3. Sums damaged, dormant, multifunction, noise, and total cell counts.
     4. Normalises biological-signal counts to the total noise count and the
@@ -113,8 +115,10 @@ def aggregate_noise_subtypes_by_cancer_type(
     for adata in adatas:
         if adata.uns.get("cell_population") != cell_population_filter:
             continue
-        classify_noise_subtypes(adata)
-        grouped[adata.uns["cancer_type"]].append(adata)
+        noise_adata = adata[adata.obs["is_noise"] == 1].copy()
+        classify_noise_subtypes(noise_adata)
+        noise_adata.uns["_total_cells"] = adata.shape[0]
+        grouped[adata.uns["cancer_type"]].append(noise_adata)
 
     annotated: dict[str, list[AnnData]] = {
         f"{cancer_type} ({len(specimens)} specimens)": specimens
@@ -127,8 +131,8 @@ def aggregate_noise_subtypes_by_cancer_type(
             sum(a.obs["damaged"].sum() for a in specimens),
             sum(a.obs["dormant"].sum() for a in specimens),
             sum(a.obs["multifunction"].sum() for a in specimens),
-            sum(a.obs["is_noise"].sum() for a in specimens),
             sum(a.shape[0] for a in specimens),
+            sum(a.uns["_total_cells"] for a in specimens),
         )
 
     raw_df = pd.DataFrame(counts, index=["damaged", "dormant", "multifunction", "noise", "total"]).T

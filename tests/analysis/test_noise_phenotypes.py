@@ -271,3 +271,30 @@ def test_aggregate_noise_subtypes_empty_input_returns_empty_dataframe():
     result = aggregate_noise_subtypes_by_cancer_type([])
     assert isinstance(result, pd.DataFrame)
     assert len(result) == 0
+
+
+def test_aggregate_noise_subtypes_excludes_non_noise_from_subtype_counts():
+    """Non-noise cells must not inflate subtype counts beyond the noise population.
+
+    With 5 noise cells and 20 non-noise cells whose metrics fall into the
+    'damaged' region, the buggy all-cell path would produce damaged% = 400%.
+    The fix (classify on noise cells only) must keep all values in [0, 100].
+    """
+    n_noise, n_non_noise = 5, 20
+    obs = pd.DataFrame(
+        {
+            "pct_counts_mt":           [50.0] * n_noise + [99.0] * n_non_noise,
+            "log1p_total_counts":      [50.0] * n_noise + [1.0]  * n_non_noise,
+            "log1p_n_genes_by_counts": [50.0] * n_noise + [1.0]  * n_non_noise,
+            "is_noise": [1] * n_noise + [0] * n_non_noise,
+        },
+        index=[f"cell_{i}" for i in range(n_noise + n_non_noise)],
+    )
+    adata = AnnData(obs=obs)
+    adata.uns["cancer_type"] = "Luminal"
+    adata.uns["cell_population"] = "Total"
+    result = aggregate_noise_subtypes_by_cancer_type([adata])
+    for col in ["damaged", "dormant", "multifunction", "noise"]:
+        assert result[col].between(0, 100).all(), (
+            f"column {col!r} has values outside [0, 100] — non-noise cells may be included"
+        )
