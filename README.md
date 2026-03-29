@@ -2,132 +2,301 @@
   <img src="images/project_logo_transparent.png" alt="Signals in the noise project logo" width="100" style="vertical-align: middle; margin-right: 0.5rem;">
   Signals in the Noise
 </h1>
+
 The graded final report for this project can be found here: https://github.com/caffiendFrog/portfolio/blob/main/academics/SIADS-699/.
 
 ## Contents
-* [Overview](#overview)
-  * [Motivation](#motivation) 
+
+* [Introduction](#introduction)
+  * [Motivation](#motivation)
   * [Objective](#objective)
 * [Getting Started](#getting-started)
-  * [Repository Structure](#repository-structure) 
-  * [Running Jupyter Notebooks](#running-jupyter-notebooks)
+  * [Prerequisites](#prerequisites)
+  * [1 — Clone the repository](#1--clone-the-repository)
+  * [2 — Create the conda environment](#2--create-the-conda-environment)
+  * [3 — Install the package](#3--install-the-package)
+  * [4 — Download the dataset](#4--download-the-dataset)
+  * [5 — Verify the setup](#5--verify-the-setup)
+  * [6 — Run the notebooks](#6--run-the-notebooks)
+* [Repository Structure](#repository-structure)
+* [Configuration](#configuration)
 * [References](#references)
 
+---
+
 ## Introduction
-Single-cell RNA sequencing (scRNA-seq) has played a pivotal role in advancing the understanding of biology by enabling researchers to measure gene expression at the resolution of individual cells. Through scRNA-seq analyses, researchers have created comprehensive cell atlases and identified rare and/or previously unrecognized cellular subpopulations. Unlike bulk RNA sequencing (bulk RNA-seq), which uses whole tissue or or bulk-sorted cells as inputs,  scRNA-seq further breaks down the tissue samples into individual cells as inputs [1].
+
+Single-cell RNA sequencing (scRNA-seq) has played a pivotal role in advancing the understanding of biology by enabling researchers to measure gene expression at the resolution of individual cells. Through scRNA-seq analyses, researchers have created comprehensive cell atlases and identified rare and/or previously unrecognized cellular subpopulations. Unlike bulk RNA sequencing (bulk RNA-seq), which uses whole tissue or bulk-sorted cells as inputs, scRNA-seq further breaks down the tissue samples into individual cells as inputs [1].
 
 A necessary byproduct of this level of resolution is a dramatic increase in the number of observations, often by 3 to 4 orders of magnitude, resulting in significantly more data for downstream analysis. Another challenge is that the process of tagging mRNA may incorrectly tag mRNA from multiple cells with the same barcode or fail to tag anything at all. These two challenges highlight the importance of verifying the quality of the reads and filtering out noise. This is commonly done by calculating metrics such as total number of genes, percentage of genes that are for mitochondria, and total number of barcodes (cells) that contain a gene. Thresholds are then determined for the dataset and cells that fall outside the threshold are filtered out from further analysis [2].
 
 _[Back to Top](#contents)_
 
 ### Motivation
-This project is motivated by the causal ambiguity of identifying thresholds for quality control (QC) metrics in the pre-processing workflow. Specifically, thresholds for scRNA-seq are set using biological assumptions, while those same or related assumptions are being evaluated by scRNA-seq. One such biological assumption is that cells with higher total RNA are metabolically healthy. As a result, the QC process often prioritizes these cells, while treating cells with low total RNA counts as technical artifacts to be filtered out [3, 4]. This approach, while effective for minimizing noise from ambient RNA contamination, risks eliminating biologically meaningful signals. 
 
-| Feature to Threshold      | Filtered by QC Metric | Targeted by DDR | Dormant Cells                 |
-|---------------------------|------------------------|-----------------|-------------------------------|
-| Low total RNA content     | ✅ Damaged cell        | ⚠️ Depends      | ✅ Viable but quiet cell       |
-| High total RNA content    | ✅ Degraded cell       | ⚠️ Depends      | ✅ Limited active gene expression |
-| Low number of genes       | ✅ Technical artifact  | ⚠️ Depends      | ✅ Limited active gene expression |
-| Low mitochondrial RNA %   | ❌ Not filtered out    | ✅ Damaged cell  | ✅ Limited energy needs        |
-| High mitochondrial RNA %  | ✅ Damaged cell        | ✅ Damaged cell  | ❌ Not dormant                 |
+This project is motivated by the causal ambiguity of identifying thresholds for quality control (QC) metrics in the pre-processing workflow. Specifically, thresholds for scRNA-seq are set using biological assumptions, while those same or related assumptions are being evaluated by scRNA-seq. One such biological assumption is that cells with higher total RNA are metabolically healthy. As a result, the QC process often prioritizes these cells, while treating cells with low total RNA counts as technical artifacts to be filtered out [3, 4]. This approach, while effective for minimizing noise from ambient RNA contamination, risks eliminating biologically meaningful signals.
 
-*Table 1. Summary of QC metric thresholds and how they correspond to different kinds of cells.*
+| Feature to Threshold      | QC Outcome              | Damaged (PBS-1)          | Dormant (PBS-2)                    |
+|---------------------------|-------------------------|--------------------------|------------------------------------|
+| Low total RNA content     | ✅ Filtered out         | ⚠️ Depends on context    | ✅ Viable but quiet cell            |
+| High total RNA content    | ✅ Filtered out         | ⚠️ Depends on context    | ✅ Limited active gene expression   |
+| Low number of genes       | ✅ Filtered out         | ⚠️ Depends on context    | ✅ Limited active gene expression   |
+| Low mitochondrial RNA %   | ❌ Not filtered out     | ❌ Not characteristic    | ✅ Limited energy needs             |
+| High mitochondrial RNA %  | ✅ Filtered out         | ✅ Key marker             | ❌ Not characteristic               |
+
+*Table 1. Summary of QC metric thresholds and their approximate correspondence to potential biological signal subtypes.*
 
 **Legend:** ✅ characteristic • ❌ not a characteristic • ⚠️ might be a characteristic (context-dependent)
+
+Cells exhibiting co-occurring QC metric extremes may represent biologically meaningful states rather than technical artifacts. We generalize these as **Potential Biological Signals (PBS)**, each assigned a descriptive name. A third subtype — **multifunction (PBS-3)** — is characterized by moderate mitochondrial fraction, moderate total RNA, and high gene count, and is not filtered by standard QC. The approximate PBS mapping is:
+
+| PBS Label | Descriptive Name | Mitochondrial RNA %  | Total RNA    | Gene Count   |
+|-----------|------------------|----------------------|--------------|--------------|
+| PBS-1     | Damaged          | High (≥ Q75)         | Low (≤ Q25)  | Low (≤ Q25)  |
+| PBS-2     | Dormant          | Low (≤ Q25)          | Low (≤ Q25)  | Moderate     |
+| PBS-3     | Multifunction    | Moderate (Q25–Q75)   | Moderate     | High (≥ Q75) |
+
+*Table 2. Approximate mapping of PBS labels to descriptive subtype names and defining QC metric profiles. Thresholds are derived from the quartile distribution of the noise-cell population.*
 
 _[Back to Top](#contents)_
 
 ### Objective
-The goal of this study is to perform a comparative scRNA-seq analysis of cells classified as biological signals (“real”) versus those labeled as technical artifacts (“noise”), with the aim of evaluating whether current QC processes systematically exclude potentially informative cellular states.
 
-This repository contains the framework used to perform comparative analysis.
+The goal of this study is to perform a comparative scRNA-seq analysis of cells classified as biological signals ("real") versus those labeled as technical artifacts ("noise"), with the aim of evaluating whether current QC processes systematically exclude potentially informative cellular states.
+
+This repository contains the framework used to perform the comparative analysis.
 
 _[Back to Top](#contents)_
+
+---
+
 ## Getting Started
-1. Prerequisites
-   * Python 3.12 or higher
-   * `pip` installed
-2. Clone the repository
-    ```bash
-       git clone https://github.com/caffiendFrog/signals-in-the-noise.git
-       cd signals-in-the-noise
-    ```
-3. Activate virtual environment for isolation
-   * Windows (CMD or Powershell)
-    ```bash
-        python -m venv .venv
-      .venv\Scripts\activate
-    ```
-  * macOS/Linux
-    ```bash
-        python3 -m venv .venv
-        source .venv/bin/activate
-    ```
-  * PyCharm (_verified on PyCharm 2025.1.2, Windows 11 Home_)
-    * Project Settings -> Python Interpreters -> Add Python Interpreter -> Local Interpreter
-      * Select `.venv` (matching above activation environment)<img src="images/pycharm_screenshot.png" width="500" alt="screenshot of adding python interpreter to pycharm 2025.1.2"/>
 
-4. Install runtime dependencies
-    ```bash
-        python .\bin\install_dependencies.py
-    ```
-    * NOTE: this has not been verified on a Mac, but should work if  
+### Prerequisites
 
-5. Install package in editable mode
-    ```bash
-        pip install -e .
-    ```
-   * _This will allow using the source code in the jupyter notebooks._
+| Requirement | Version |
+|---|---|
+| Operating system | Windows 10 / 11 |
+| [Miniconda](https://docs.conda.io/en/latest/miniconda.html) or Anaconda | Any recent version |
+| Git | Any recent version |
 
-6. Download the datasets
-    ```bash
-        python .\bin\download_datasets.py
-    ```
-   * We will be using [GSE161529](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE161529) [5, 6]. The datasets are prohibitively large to store in GitHub. Datasets can be downloaded directly from the Gene Expression Omnibus (GEO) or by using the provided python script which will download the files to the `assets` directory and expand the `tar` file for the patient samples. The authors provide the following statement about the data:
-     * > “Processed scRNA‐seq and bulk RNA‐seq data generated for this study are available as GEO series GSE161529 and GSE161892, respectively. Raw data are available on request, subject to approval by our institutional Data Access Committee (dataaccess@wehi.edu.au) to ensure preservation of patient confidentiality.”
-   * Using the python script will ensure compatibility with the rest of the downstream workflow (e.g. file naming conventions and locations).
+> **Note:** The environment and all path handling are Windows-specific. The conda
+> environment definition pins every dependency to an exact version for reproducibility.
 
 _[Back to Top](#contents)_
 
-### Repository Structure
+### 1 — Clone the repository
 
-* `bin`
-  * Scripts to install dependencies and download datasets
-* `data`
-  * Data in various stages of preprocessing
-  * Marked as `.gitignore` due to the size of data
-  * Recommended to mark this directory as excluded from indexing in IDE
-* `images`
-  * Images used in documentation 
-* `notebook`
-  * Jupyter notebooks (the analysis)
-* `resources`
-  * Additonal resources for the data
-  * Recommended to mark this directory as excluded from indexing in IDE.
-* `src\signals_in_the-noise`
-  * `preprocessing`
-    * Source code for preprocessing data.
-  * `utilities`
-    * Source code for utility functions
+```powershell
+git clone https://github.com/caffiendFrog/signals-in-the-noise.git
+cd signals-in-the-noise
+```
 
 _[Back to Top](#contents)_
 
-### Running Jupyter Notebooks
-Jupyter notebooks must be started within the virtual environment.
-* Window (CMD or Powershell), macOS/Linux
-  * After activating the virtualenv, you should see `(.venv)` prefixed to your command line.
-  * Start jupyter notebooks you normally would.
-* PyCharm 2025.1.2
-  * If you have the pro version or on a trial that allows interacting directly with jupyter notebooks, be sure to select your activated virtual environment as the interpreter.
+### 2 — Create the conda environment
+
+All dependencies, including Python itself, are declared in `environment.yml`.
+Create the environment once and activate it for every subsequent session.
+
+```powershell
+conda env create -f environment.yml
+conda activate signals-in-the-noise
+```
+
+To update the environment after a dependency change (e.g. pulling new commits):
+
+```powershell
+conda env update -f environment.yml --prune
+```
 
 _[Back to Top](#contents)_
+
+### 3 — Install the package
+
+Install the `signals_in_the_noise` package in editable mode so that the source
+code in `src/` is importable from the notebooks without any path manipulation:
+
+```powershell
+pip install -e .
+```
+
+_[Back to Top](#contents)_
+
+### 4 — Download the dataset
+
+This project uses [GSE161529](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE161529) [5, 6] — a human breast cancer scRNA-seq dataset. The raw files are too large to store in the repository and must be downloaded separately.
+
+> "Processed scRNA-seq and bulk RNA-seq data generated for this study are available as GEO series GSE161529 and GSE161892, respectively. Raw data are available on request, subject to approval by our institutional Data Access Committee (dataaccess@wehi.edu.au) to ensure preservation of patient confidentiality."
+
+The download script fetches the tar archive and the shared features file directly from GEO, then extracts the archive into `data/raw/`:
+
+```powershell
+python scripts\download_data.py
+```
+
+After the script completes, `data/raw/` will contain:
+
+```
+data/raw/
+    GSE161529_RAW/               ← per-sample barcode and matrix files
+    GSE161529_features.tsv.gz    ← shared gene features file
+```
+
+You will also need to place the supplementary Excel files provided by the authors into `resources`:
+
+```
+resources/
+    GSE161529/
+        table_supplementary_1.xlsx
+        table_supplementary_2.xlsx
+        table_ev_4.xlsx
+```
+
+_[Back to Top](#contents)_
+
+### 5 — Verify the setup
+
+Run the test suite to confirm the environment and package are working correctly.
+The tests use small committed fixture files and do not require the full dataset.
+
+```powershell
+pytest
+```
+
+All tests should pass. Expected output:
+
+```
+143 passed in ~5.48s
+```
+
+_[Back to Top](#contents)_
+
+### 6 — Run the notebooks
+
+Start Jupyter from within the activated conda environment:
+
+```powershell
+jupyter lab
+```
+
+The analysis is organised into numbered notebooks under `notebooks/GSE161529/`.
+Run them in order:
+
+| Notebook | Description |
+|---|---|
+| `00-a-epi-cell-typing-reverse-engineer.ipynb` | Reverse-engineer the authors' epithelial cell typing approach |
+| `01-epi-cell-typing-figure-1c.ipynb` | Reproduce Figure 1C |
+| `02-epi-cell-typing-figure-1d.ipynb` | Reproduce Figure 1D |
+| `03-epi-cell-typing-figure-1e.ipynb` | Reproduce Figure 1E |
+| `04-epi-cell-typing-figure-1h.ipynb` | Reproduce Figure 1H |
+| `05-epi-cell-typing-empty-cells.ipynb` | Analyze cells labeled as empty / noise |
+| `06-a-epi-cell-typing-associated-pathways-raw.ipynb` | Pathway analysis — raw expression |
+| `06-b-epi-cell-typing-associated-pathways-avg.ipynb` | Pathway analysis — averaged expression |
+| `06-c-epi-cell-typing-associated-pathways-gsea.ipynb` | Gene set enrichment analysis |
+| `07-epi-cell-typing-total-populations.ipynb` | Compare total cell populations |
+| `08-findings-eda.ipynb` | Exploratory data analysis of findings |
+
+Each notebook imports from the `signals_in_the_noise` package installed in step 3.
+To enable logging output in a notebook, add this to the first cell:
+
+```python
+from signals_in_the_noise.utils.logging_config import setup_logging
+setup_logging()
+```
+
+_[Back to Top](#contents)_
+
+---
+
+## Repository Structure
+
+```
+signals-in-the-noise/
+├── src/
+│   └── signals_in_the_noise/
+│       ├── config.py                   # project-wide path constants and helper functions
+│       ├── analysis/
+│       │   ├── noise_phenotypes.py     # noise-cell phenotype annotation logic
+│       │   └── statistics.py          # statistical comparison helpers
+│       ├── io/
+│       │   ├── gmt.py                  # GMT gene-set file parser
+│       │   └── tenx.py                 # 10x Genomics file reconstitution and AnnData loading
+│       ├── preprocessing/
+│       │   ├── base.py                 # Preprocessor base class and PreprocessorConfig dataclass
+│       │   └── gse161529.py            # GSE161529-specific preprocessing subclass
+│       └── utils/
+│           ├── log.py                  # module-level logger factory (no handler configuration)
+│           ├── logging_config.py       # setup_logging() for entry points and notebooks
+│           └── visualization.py        # matplotlib figure/axes grid helper
+├── tests/
+│   ├── conftest.py                     # shared pytest fixtures
+│   ├── analysis/
+│   │   ├── test_noise_phenotypes.py
+│   │   └── test_statistics.py
+│   ├── functional/
+│   │   └── test_tenx_functional.py    # end-to-end tests using committed fixture files
+│   ├── io/
+│   │   ├── test_gmt.py
+│   │   └── test_tenx.py
+│   ├── preprocessing/
+│   │   ├── test_base.py
+│   │   └── test_gse161529.py
+│   ├── utils/
+│   │   ├── test_log.py
+│   │   ├── test_logging_config.py
+│   │   └── test_visualization.py
+│   └── test_config.py
+├── notebooks/
+│   └── GSE161529/                      # numbered analysis notebooks (run in order)
+├── scripts/
+│   ├── download_data.py                # downloads and extracts GSE161529 raw data
+│   └── generate_fixtures.py            # regenerates committed test fixture files
+├── data/
+│   ├── raw/                            # git-ignored; downloaded dataset files
+│   ├── processed/                      # git-ignored; intermediate pipeline outputs
+│   ├── reference/                      # git-ignored; supplementary Excel files
+│   └── fixtures/
+│       └── tenx/                       # small committed files used by functional tests
+├── resources/
+│   └── GSE161529/
+│       ├── epithelial_cell_typing/     # gene signature Excel files (Lim et al. 2009)
+│       ├── gene_set_enrichment_analysis/  # MSigDB Hallmark GMT files
+│       └── table_*.xlsx                # supplementary tables committed to git
+├── environment.yml                     # conda environment — single source of truth for dependencies
+├── pyproject.toml                      # build metadata and pytest/ruff configuration
+└── README.md
+```
+
+_[Back to Top](#contents)_
+
+---
+
+## Configuration
+
+All project-wide paths are resolved in `src/signals_in_the_noise/config.py`. It exposes two constants and two helper functions:
+
+| Name | Type | Description |
+|---|---|---|
+| `PROJECT_ROOT` | `Path` | Repository root (resolved at import time via `__file__`) |
+| `DATA_DIRECTORY` | `Path` | `<PROJECT_ROOT>/data/` |
+| `RESOURCES_DIRECTORY` | `Path` | `<PROJECT_ROOT>/resources/` |
+| `get_data_path(subpath)` | function | Returns `DATA_DIRECTORY / subpath`, or `DATA_DIRECTORY` if `subpath` is `None` |
+| `get_resources_path(subpath)` | function | Returns `RESOURCES_DIRECTORY / subpath`, or `RESOURCES_DIRECTORY` if `subpath` is `None` |
+
+There are no hardcoded absolute paths anywhere in the source code. Every file I/O operation resolves its path through one of these helpers.
+
+_[Back to Top](#contents)_
+
+---
 
 ## References
+
 1. Lafzi A, Moutinho C, Picelli S, Heyn H. Tutorial: guidelines for the experimental design of single-cell RNA sequencing studies. Nature protocols. London: Nature Publishing Group UK; 2018;13(12):2742–2757.
-2. Luecken MD, Theis FJ. Current best practices in single‐cell RNA‐seq analysis: a tutorial. Molecular systems biology. London: Nature Publishing Group UK; 2019;15(6):e8746-n/a.
+2. Luecken MD, Theis FJ. Current best practices in single-cell RNA-seq analysis: a tutorial. Molecular systems biology. London: Nature Publishing Group UK; 2019;15(6):e8746-n/a.
 3. Young, Matthew D, Behjati, Sam. SoupX removes ambient RNA contamination from droplet-based single-cell RNA sequencing data. Gigascience. United States: Oxford University Press; 2020;9(12).
-4. Cheng, Sophia K. Signals in the Noise: Uncovering the Biological Signatures of Ghost Cell Profiles in Human Breast Cancer. Dec 2025. Data Science for Social Good, University of Michigan, student paper. 
-5. Yeh, Albert C, Ramaswamy, Sridhar. Mechanisms of Cancer Cell Dormancy--Another Hallmark of Cancer? Cancer research (Chicago, Ill). United States; 2015;75(23):5014–5022. 
+4. Cheng, Sophia K. Signals in the Noise: Uncovering the Biological Signatures of Ghost Cell Profiles in Human Breast Cancer. Dec 2025. Data Science for Social Good, University of Michigan, student paper.
+5. Yeh, Albert C, Ramaswamy, Sridhar. Mechanisms of Cancer Cell Dormancy--Another Hallmark of Cancer? Cancer research (Chicago, Ill). United States; 2015;75(23):5014–5022.
 6. Abad, Etna, Graifer, Dmitry, Lyakhovich, Alex. DNA damage response and resistance of cancer stem cells. Cancer letters. Ireland: Elsevier B.V; 2020;474:106–117.
 
 _[Back to Top](#contents)_

@@ -1,18 +1,32 @@
+# Data (except test fixtures)
+data/raw/
+data/processed/
+data/reference/
+data/outputs/
+
 # Python
 __pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+dist/
+build/
+.env
 
-# Virtual environment
+# Conda / virtual environments
+.conda/
+envs/
 .venv*/
 venv/
 
-**/*.egg-info
-
 # Jupyter
-**/.ipynb_checkpoints/
+.ipynb_checkpoints/
+*.ipynb_checkpoints
 
-# PyCharm
+# IDE
+.vscode/settings.json
 .idea/
 
-# Windows
+# OS
 Thumbs.db
-.DS_Store
+desktop.ini
