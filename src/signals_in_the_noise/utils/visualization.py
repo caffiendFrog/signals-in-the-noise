@@ -69,7 +69,7 @@ def plot_pathway_heatmap(
 
     Genes are split evenly across ``n_panels`` vertically stacked sub-panels so
     that wide gene sets remain legible.  Only genes present in ``adata.var_names``
-    are included; absent genes are silently dropped.
+    are included; absent genes are dropped with a warning logged.
 
     Args:
         adata: AnnData object with raw count matrix and an ``obs`` column named
@@ -88,6 +88,13 @@ def plot_pathway_heatmap(
         List of axes, one per panel, with the heatmaps drawn.
     """
     actual_genes = [g for g in pathway_genes if g in adata.var_names]
+    if not actual_genes:
+        logger.warning(
+            "plot_pathway_heatmap: none of the %d requested genes are present in "
+            "adata.var_names for pathway %r; returning empty axes.",
+            len(pathway_genes),
+            pathway_name,
+        )
     gene_splits = np.array_split(actual_genes, n_panels)
 
     panel_dfs: list[pd.DataFrame] = []

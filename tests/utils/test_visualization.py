@@ -96,12 +96,15 @@ def test_plot_pathway_heatmap_dense_matrix():
     plt.close("all")
 
 
-def test_plot_pathway_heatmap_all_genes_absent():
-    """When no requested genes exist in adata the function must not raise."""
+def test_plot_pathway_heatmap_all_genes_absent(caplog):
+    """All-absent gene list: must not raise, return axes, and log a warning."""
+    import logging
     adata = _make_adata()
     genes = ["NOT_A", "NOT_B", "NOT_C"]
-    result = plot_pathway_heatmap(adata, "TEST_PATHWAY", genes)
+    with caplog.at_level(logging.WARNING, logger="signals_in_the_noise.utils.visualization"):
+        result = plot_pathway_heatmap(adata, "TEST_PATHWAY", genes)
     assert isinstance(result, list)
+    assert any("none of the" in msg for msg in caplog.messages)
     plt.close("all")
 
 
