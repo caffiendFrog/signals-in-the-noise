@@ -257,7 +257,7 @@ def plot_noise_subtype_comparison(
         norm_df[["noise"]]
         .reset_index()
         .rename(columns={"index": "cancer type"})
-        .melt(id_vars="cancer type", var_name="potential signal", value_name="percentage of noise")
+        .melt(id_vars="cancer type", var_name="potential signal", value_name="percentage of cells")
     )
 
     if axes is None:
@@ -276,7 +276,7 @@ def plot_noise_subtype_comparison(
     ax1.set_ylabel("percentage")
     ax1.get_legend().remove()
 
-    sns.barplot(data=long_noise, x="potential signal", y="percentage of noise", hue="cancer type", ax=ax2)
+    sns.barplot(data=long_noise, x="potential signal", y="percentage of cells", hue="cancer type", ax=ax2)
     ax2.set_title('"Noise" Cells')
     ax2.set_xlabel("")
     ax2.set_ylabel("percentage")
