@@ -278,14 +278,14 @@ def test_aggregate_noise_subtypes_zero_noise_produces_zero_percentages():
     adata = _make_classified_adata("Luminal", noise_fraction=0.0)
     result = aggregate_noise_subtypes_by_cancer_type([adata])
     assert not result.isnull().any().any(), "result contains NaN"
-    assert result[["damaged", "dormant", "multifunction"]].eq(0.0).all().all()
+    assert result[["pbs-1", "pbs-2", "pbs-3"]].eq(0.0).all().all()
 
 
 def test_aggregate_noise_subtypes_excludes_non_noise_from_subtype_counts():
     """Non-noise cells must not inflate subtype counts beyond the noise population.
 
     With 5 noise cells and 20 non-noise cells whose metrics fall into the
-    'damaged' region, the buggy all-cell path would produce damaged% = 400%.
+    'pbs-1' region, the buggy all-cell path would produce pbs-1% = 400%.
     The fix (classify on noise cells only) must keep all values in [0, 100].
     """
     n_noise, n_non_noise = 5, 20
@@ -302,7 +302,7 @@ def test_aggregate_noise_subtypes_excludes_non_noise_from_subtype_counts():
     adata.uns["cancer_type"] = "Luminal"
     adata.uns["cell_population"] = "Total"
     result = aggregate_noise_subtypes_by_cancer_type([adata])
-    for col in ["damaged", "dormant", "multifunction", "noise"]:
+    for col in ["pbs-1", "pbs-2", "pbs-3", "noise"]:
         assert result[col].between(0, 100).all(), (
             f"column {col!r} has values outside [0, 100] — non-noise cells may be included"
         )

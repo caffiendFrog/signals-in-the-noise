@@ -133,10 +133,10 @@ data/raw/
     GSE161529_features.tsv.gz    ← shared gene features file
 ```
 
-You will also need to place the supplementary Excel files provided by the authors into `data/reference/`:
+You will also need to place the supplementary Excel files provided by the authors into `resources`:
 
 ```
-data/reference/
+resources/
     GSE161529/
         table_supplementary_1.xlsx
         table_supplementary_2.xlsx
@@ -157,7 +157,7 @@ pytest
 All tests should pass. Expected output:
 
 ```
-72 passed in ~10s
+143 passed in ~5.48s
 ```
 
 _[Back to Top](#contents)_
