@@ -340,6 +340,11 @@ def plot_empty_cell_violin_comparison(
         _, axes = get_figure_axes(2, num_cols=2, subplot_size=subplot_size)
         axes[0].figure.suptitle("Distribution of Zero Mitochondria")
 
+    if len(axes) != 2:
+        raise ValueError(
+            f"Expected exactly 2 axes (noise panel and all-cells panel), got {len(axes)}."
+        )
+
     axes[0].set_title('"Noise" cells')
     axes[1].set_title("All cells")
 

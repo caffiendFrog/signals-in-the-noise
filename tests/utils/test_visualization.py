@@ -325,6 +325,16 @@ def test_plot_empty_cell_violin_comparison_does_not_raise_on_valid_input():
     plt.close("all")
 
 
+def test_plot_empty_cell_violin_comparison_raises_on_axes_length_mismatch():
+    """Passing the wrong number of axes must raise ValueError immediately."""
+    noise = _make_violin_adata(seed=0)
+    combined = _make_violin_adata(seed=1)
+    fig, ax = plt.subplots(1, 1)  # 1 axis instead of required 2
+    with pytest.raises(ValueError, match="2 axes"):
+        plot_empty_cell_violin_comparison(noise, combined, groupby="specimen_id", axes=[ax])
+    plt.close("all")
+
+
 # ---------------------------------------------------------------------------
 # plot_gene_signature_score_distribution tests
 # ---------------------------------------------------------------------------
