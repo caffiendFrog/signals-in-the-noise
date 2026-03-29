@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import scanpy as sc
+import scipy.sparse as sp
 import seaborn as sns
 from anndata import AnnData
 
@@ -91,11 +92,11 @@ def plot_pathway_heatmap(
 
     panel_dfs: list[pd.DataFrame] = []
     for genes in gene_splits:
-        df = pd.DataFrame(
-            adata[:, genes].X.toarray(),
-            index=adata.obs_names,
-            columns=genes,
-        )
+        if len(genes) == 0:
+            continue
+        X = adata[:, genes].X
+        values = X.toarray() if sp.issparse(X) else np.asarray(X)
+        df = pd.DataFrame(values, index=adata.obs_names, columns=genes)
         df["specimen_id"] = adata.obs["specimen_id"].values
         panel_dfs.append(df.groupby("specimen_id").mean())
 

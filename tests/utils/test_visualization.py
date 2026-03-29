@@ -85,6 +85,26 @@ def test_plot_pathway_heatmap_does_not_raise_with_single_panel():
     plt.close("all")
 
 
+def test_plot_pathway_heatmap_dense_matrix():
+    """adata.X as a dense NumPy array must not raise AttributeError."""
+    adata = _make_adata()
+    adata.X = np.asarray(adata.X.toarray())
+    genes = [f"GENE_{i}" for i in range(6)]
+    result = plot_pathway_heatmap(adata, "TEST_PATHWAY", genes)
+    assert isinstance(result, list)
+    assert all(isinstance(ax, matplotlib.axes.Axes) for ax in result)
+    plt.close("all")
+
+
+def test_plot_pathway_heatmap_all_genes_absent():
+    """When no requested genes exist in adata the function must not raise."""
+    adata = _make_adata()
+    genes = ["NOT_A", "NOT_B", "NOT_C"]
+    result = plot_pathway_heatmap(adata, "TEST_PATHWAY", genes)
+    assert isinstance(result, list)
+    plt.close("all")
+
+
 # ---------------------------------------------------------------------------
 # plot_score_heatmap helpers
 # ---------------------------------------------------------------------------
