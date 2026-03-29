@@ -61,7 +61,7 @@ def combine_gmt_files(
             Defaults to ``False``.
 
     Returns:
-        The resolved ``output_path``.
+        The ``output_path`` as a :class:`~pathlib.Path`.
 
     Raises:
         FileNotFoundError: If any path in ``input_paths`` does not exist.
