@@ -79,6 +79,8 @@ def classify_noise_subtypes(
 def aggregate_noise_subtypes_by_cancer_type(
     adatas: list[AnnData],
     cell_population_filter: str = "Total",
+    q_low: float = 0.25,
+    q_high: float = 0.75,
 ) -> pd.DataFrame:
     """Aggregate noise-subtype counts across specimens and normalise by cancer type.
 
@@ -105,7 +107,10 @@ def aggregate_noise_subtypes_by_cancer_type(
             ``is_noise``.
         cell_population_filter: Value of ``uns['cell_population']`` used to
             select relevant specimens.  Defaults to ``'Total'``.
-
+        q_low: Lower quantile used as the "low" boundary for each metric.
+            Defaults to 0.25 (25th percentile).
+        q_high: Upper quantile used as the "high" boundary for each metric.
+            Defaults to 0.75 (75th percentile).
     Returns:
         DataFrame indexed by annotated cancer-type labels with four columns:
         ``pbs-1``, ``pbs-2``, ``pbs-3`` (each as a percentage of
@@ -116,7 +121,7 @@ def aggregate_noise_subtypes_by_cancer_type(
         if adata.uns.get("cell_population") != cell_population_filter:
             continue
         noise_adata = adata[adata.obs["is_noise"] == 1].copy()
-        classify_noise_subtypes(noise_adata)
+        classify_noise_subtypes(noise_adata, q_low=q_low, q_high=q_high)
         noise_adata.uns["_total_cells"] = adata.shape[0]
         grouped[adata.uns["cancer_type"]].append(noise_adata)
 
