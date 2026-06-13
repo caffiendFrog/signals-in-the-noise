@@ -12,10 +12,10 @@ logger = logging.getLogger(__name__)
 class Thresholds:
     """Quantile boundaries for low, high, and moderate classification of one metric."""
 
-    q_low: float
-    q_high: float
-    q_mod_low: float
-    q_mod_high: float
+    q_low: float | None
+    q_high: float | None
+    q_mod_low: float | None
+    q_mod_high: float | None
 
 
 @dataclass(frozen=True)
@@ -31,7 +31,7 @@ def _thresh(q_low: float, q_high: float) -> Thresholds:
     return Thresholds(q_low, q_high, q_low, q_high)
 
 
-_DEFAULT = _thresh(0.25, 0.75)
+_DEFAULT = _thresh(0.25, 0.95)
 
 
 DEFAULT_PBS_THRESHOLDS: dict[str, PbsThresholds] = {
