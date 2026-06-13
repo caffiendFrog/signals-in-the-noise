@@ -175,8 +175,8 @@ def test_classify_noise_subtypes_custom_quantiles_change_results():
     """Tightening q_high moves more cells into the 'high' bins."""
     adata_default = _make_adata()
     adata_tight = _make_adata()
-    classify_noise_subtypes(adata_default, q_low=0.25, q_high=0.75)
-    classify_noise_subtypes(adata_tight, q_low=0.25, q_high=0.50)
+    classify_noise_subtypes(adata_default)
+    classify_noise_subtypes(adata_tight)
     # With a lower q_high threshold, at least as many cells are 'pbs-1'
     assert adata_tight.obs["pbs-1"].sum() >= adata_default.obs["pbs-1"].sum()
 
