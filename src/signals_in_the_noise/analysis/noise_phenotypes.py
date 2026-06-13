@@ -1,10 +1,19 @@
 import logging
 from collections import defaultdict
+from dataclasses import dataclass
 
 import pandas as pd
 from anndata import AnnData
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class Thresholds:
+    q_low: float
+    q_high: float
+    q_mod_low: float
+    q_mod_high: float
 
 
 def classify_noise_subtypes(
