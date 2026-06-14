@@ -12,8 +12,12 @@ from signals_in_the_noise.utils.logging_config import setup_logging
 
 logger = logging.getLogger(__name__)
 
+# -- original data set, atlas
 # ACCESSION_NUMBER = "GSE161529"
-ACCESSION_NUMBER = "GSE154932"
+# -- validation data set, cancerous
+# ACCESSION_NUMBER = "GSE154932"
+# -- validation data set, normal
+ACCESSION_NUMBER = "GSE297393"
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DATA_DIRECTORY = PROJECT_ROOT / "data" / "raw"
@@ -69,7 +73,7 @@ def main() -> None:
     if not extract_to.exists():
         extract_tar(RAW_DATA_FILE, extract_to)
 
-    if ACCESSION_NUMBER != "GSE154932":
+    if ACCESSION_NUMBER == "GSE161529":
         download_file(FEATURES_URL, FEATURES_FILE)
 
 
