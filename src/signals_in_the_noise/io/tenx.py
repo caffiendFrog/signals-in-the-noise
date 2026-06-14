@@ -23,9 +23,12 @@ class TenX:
           supplied separately via ``features_filename``
 
     Per-sample features:
-        - <sample identifier>-barcodes.tsv.gz
-        - <sample identifier>-matrix.mtx.gz
-        - <sample identifier>-features.tsv.gz
+        - <sample identifier>_barcodes.tsv.gz
+        - <sample identifier>_matrix.mtx.gz
+        - <sample identifier>_features.tsv.gz
+
+    GEO per-sample files commonly use underscore delimiters (e.g.
+    ``GSM4684556_t0_barcodes.tsv.gz``). Hyphen delimiters are also accepted.
 
     Pass ``features_filename=None`` to use per-sample features files from the directory.
     """
@@ -43,7 +46,7 @@ class TenX:
             directory: Path to the directory containing the raw per-sample files.
             features_filename: Path to a shared features TSV file. Must end with
                 ``_features.tsv.gz``. When omitted, each sample must have its own
-                ``<sample identifier>-features.tsv.gz`` file in ``directory``.
+                ``<sample identifier>_features.tsv.gz`` file in ``directory``.
             study_id: Study identifier used for cache paths. Required when
                 ``features_filename`` is omitted and the directory name does not
                 end with ``_RAW``.
@@ -113,18 +116,48 @@ class TenX:
             cache_directory = self.cache_directory_name
             cache_directory.mkdir(parents=True, exist_ok=True)
 
-        samples_to_files = self._samples_to_file_dictionary()
+        samples_to_files = (
+            self._samples_to_file_dictionary_per_sample()
+            if self.features_path is None
+            else self._samples_to_file_dictionary()
+        )
         self._reconstitute_ten_x_file_structure(samples_to_files, cache_directory)
 
     def _samples_to_file_dictionary(self) -> dict:
-        """Build a mapping of sample IDs to their barcode, matrix, and features filenames.
+        """Build a mapping of sample IDs to barcode and matrix filenames.
+
+        Used when a shared features file is supplied via ``features_filename``.
+
+        Returns:
+            Dictionary mapping sample identifier strings to lists of matching filenames.
+        """
+        pattern = re.compile(r"^(?P<sample_id>.+?)-(barcodes\.tsv|matrix\.mtx)\.gz$")
+        return self._build_samples_to_file_dictionary(pattern)
+
+    def _samples_to_file_dictionary_per_sample(self) -> dict:
+        """Build a mapping of sample IDs to barcode, matrix, and features filenames.
+
+        Used when each sample has its own features file in the raw directory.
+        Matches GEO-style underscore names (``GSM4684556_t0_barcodes.tsv.gz``)
+        and hyphen-delimited names (``SAMPLE1-barcodes.tsv.gz``).
 
         Returns:
             Dictionary mapping sample identifier strings to lists of matching filenames.
         """
         pattern = re.compile(
-            r"^(?P<sample_id>.+?)-(barcodes\.tsv|matrix\.mtx|features\.tsv)\.gz$"
+            r"^(?P<sample_id>.+?)[-_](barcodes\.tsv|matrix\.mtx|features\.tsv)\.gz$"
         )
+        return self._build_samples_to_file_dictionary(pattern)
+
+    def _build_samples_to_file_dictionary(self, pattern: re.Pattern[str]) -> dict:
+        """Group filenames in ``directory`` by sample ID using ``pattern``.
+
+        Args:
+            pattern: Compiled regex with a ``sample_id`` named group.
+
+        Returns:
+            Dictionary mapping sample identifier strings to lists of matching filenames.
+        """
         samples_to_files: dict = defaultdict(list)
         for path in self.directory.iterdir():
             match = pattern.match(path.name)
