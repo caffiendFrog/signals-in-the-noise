@@ -13,6 +13,7 @@ To regenerate the fixture files:
     python scripts/generate_fixtures.py
 """
 
+import shutil
 from pathlib import Path
 from unittest.mock import patch
 
@@ -203,6 +204,43 @@ def test_load_data_with_cache_skips_already_cached_samples(
     for adata in tenx2.multiple_adata:
         assert adata.n_obs == EXPECTED_N_CELLS
         assert adata.n_vars == EXPECTED_N_GENES
+
+
+# ---------------------------------------------------------------------------
+# Per-sample features files
+# ---------------------------------------------------------------------------
+
+
+def test_load_data_with_per_sample_features(tmp_path, tenx_raw_dir, tenx_features_file):
+    per_sample_dir = tmp_path / "FIXTURE_RAW"
+    per_sample_dir.mkdir()
+    for sample_id in EXPECTED_SAMPLES:
+        shutil.copy2(
+            tenx_raw_dir / f"{sample_id}-barcodes.tsv.gz",
+            per_sample_dir / f"{sample_id}-barcodes.tsv.gz",
+        )
+        shutil.copy2(
+            tenx_raw_dir / f"{sample_id}-matrix.mtx.gz",
+            per_sample_dir / f"{sample_id}-matrix.mtx.gz",
+        )
+        shutil.copy2(
+            tenx_features_file,
+            per_sample_dir / f"{sample_id}-features.tsv.gz",
+        )
+
+    def fake_gdp(subpath=None):
+        return tmp_path / subpath if subpath else tmp_path
+
+    with patch("signals_in_the_noise.io.tenx.get_data_path", side_effect=fake_gdp):
+        tenx = TenX(str(per_sample_dir))
+        tenx.load_data(cache=False)
+
+    assert tenx.study_id == "FIXTURE"
+    assert len(tenx.multiple_adata) == len(EXPECTED_SAMPLES)
+    for adata in tenx.multiple_adata:
+        assert adata.n_obs == EXPECTED_N_CELLS
+        assert adata.n_vars == EXPECTED_N_GENES
+        assert list(adata.var_names) == EXPECTED_GENE_NAMES
 
 
 # ---------------------------------------------------------------------------

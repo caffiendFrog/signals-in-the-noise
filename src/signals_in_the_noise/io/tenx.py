@@ -14,38 +14,69 @@ logger = get_logger(__name__)
 class TenX:
     """Utility class for reconstituting 10x Genomics raw data into a sparse AnnData object.
 
-    The directory is expected to contain one pair of files per sample:
+    The directory is expected to contain per-sample files with one of two layouts:
+
+    Shared features (default):
         - <sample identifier>-barcodes.tsv.gz
         - <sample identifier>-matrix.mtx.gz
+        - a single shared features file (``<study identifier>_features.tsv.gz``)
+          supplied separately via ``features_filename``
 
-    With a single shared features file (named ``<study identifier>_features.tsv.gz``)
-    supplied separately.
+    Per-sample features:
+        - <sample identifier>-barcodes.tsv.gz
+        - <sample identifier>-matrix.mtx.gz
+        - <sample identifier>-features.tsv.gz
+
+    Pass ``features_filename=None`` to use per-sample features files from the directory.
     """
 
-    def __init__(self, directory: str, *, features_filename: str):
+    def __init__(
+        self,
+        directory: str,
+        *,
+        features_filename: str | None = None,
+        study_id: str | None = None,
+    ):
         """Initialize a TenX loader.
 
         Args:
             directory: Path to the directory containing the raw per-sample files.
-            features_filename: Path to the shared features TSV file.
-                Must end with ``_features.tsv.gz``.
+            features_filename: Path to a shared features TSV file. Must end with
+                ``_features.tsv.gz``. When omitted, each sample must have its own
+                ``<sample identifier>-features.tsv.gz`` file in ``directory``.
+            study_id: Study identifier used for cache paths. Required when
+                ``features_filename`` is omitted and the directory name does not
+                end with ``_RAW``.
 
         Raises:
-            FileNotFoundError: If ``features_filename`` does not exist on disk.
-            ValueError: If the features filename is not in the expected format.
+            FileNotFoundError: If ``features_filename`` is given but does not exist.
+            ValueError: If the features filename is not in the expected format, or
+                if ``study_id`` cannot be determined.
         """
         self.directory = Path(directory)
 
-        features_path = Path(features_filename)
-        if not features_path.exists():
-            raise FileNotFoundError(f"Required file not found: {features_filename}")
-        if not features_path.name.endswith("_features.tsv.gz"):
-            raise ValueError(
-                "features_filename is not in the expected format, '_features.tsv.gz'"
-            )
+        if features_filename is not None:
+            features_path = Path(features_filename)
+            if not features_path.exists():
+                raise FileNotFoundError(f"Required file not found: {features_filename}")
+            if not features_path.name.endswith("_features.tsv.gz"):
+                raise ValueError(
+                    "features_filename is not in the expected format, '_features.tsv.gz'"
+                )
+            self.features_path = features_path
+            self.study_id = features_path.stem.replace("_features.tsv", "")
+        else:
+            self.features_path = None
+            if study_id is not None:
+                self.study_id = study_id
+            elif self.directory.name.endswith("_RAW"):
+                self.study_id = self.directory.name.removesuffix("_RAW")
+            else:
+                raise ValueError(
+                    "study_id must be provided when features_filename is omitted "
+                    "and the directory name does not end with '_RAW'"
+                )
 
-        self.features_path = features_path
-        self.study_id = features_path.stem.replace("_features.tsv", "")
         self.multiple_adata = []
 
         self.study_directory = get_data_path(self.study_id)
@@ -86,12 +117,14 @@ class TenX:
         self._reconstitute_ten_x_file_structure(samples_to_files, cache_directory)
 
     def _samples_to_file_dictionary(self) -> dict:
-        """Build a mapping of sample IDs to their barcode and matrix filenames.
+        """Build a mapping of sample IDs to their barcode, matrix, and features filenames.
 
         Returns:
             Dictionary mapping sample identifier strings to lists of matching filenames.
         """
-        pattern = re.compile(r"^(?P<sample_id>.+?)-(barcodes\.tsv|matrix\.mtx)\.gz$")
+        pattern = re.compile(
+            r"^(?P<sample_id>.+?)-(barcodes\.tsv|matrix\.mtx|features\.tsv)\.gz$"
+        )
         samples_to_files: dict = defaultdict(list)
         for path in self.directory.iterdir():
             match = pattern.match(path.name)
@@ -132,12 +165,25 @@ class TenX:
                     shutil.copy2(source_path, sample_dir / "barcodes.tsv.gz")
                 elif "matrix" in filename:
                     shutil.copy2(source_path, sample_dir / "matrix.mtx.gz")
+                elif "features" in filename:
+                    shutil.copy2(source_path, sample_dir / "features.tsv.gz")
                 else:
                     missing_targets[sample_identifier].append(filename)
 
-            shutil.copy2(self.features_path, sample_dir / "features.tsv.gz")
+            if self.features_path:
+                shutil.copy2(self.features_path, sample_dir / "features.tsv.gz")
 
-            if sample_identifier not in missing_targets:
+            required_file_types = ("barcodes", "matrix")
+            if not self.features_path:
+                required_file_types = ("barcodes", "matrix", "features")
+
+            missing_required = [
+                file_type
+                for file_type in required_file_types
+                if not any(file_type in filename for filename in filenames)
+            ]
+
+            if sample_identifier not in missing_targets and not missing_required:
                 logger.info(f"Reading {sample_identifier} as AnnData object.")
                 adata_filename = f"{sample_identifier}.h5ad"
                 adata = sc.read_10x_mtx(path=str(sample_dir))
@@ -147,10 +193,15 @@ class TenX:
                     logger.info("...caching object.")
                     adata.write_h5ad(cache_directory / adata_filename)
             else:
-                logger.warning(
-                    f"Skipping {sample_identifier}, unable to determine target paths for "
-                    f"{missing_targets[sample_identifier]}"
-                )
+                reasons = []
+                if sample_identifier in missing_targets:
+                    reasons.append(
+                        "unable to determine target paths for "
+                        f"{missing_targets[sample_identifier]}"
+                    )
+                if missing_required:
+                    reasons.append(f"missing required files: {missing_required}")
+                logger.warning(f"Skipping {sample_identifier}, {'; '.join(reasons)}")
 
         for file in skipped_files:
             logger.info(f"Loading cached object from file {file}")

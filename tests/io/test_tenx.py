@@ -25,9 +25,42 @@ def test_tenx_init_raises_on_wrong_features_format(tmp_path):
         TenX(str(tmp_path), features_filename=str(bad_features))
 
 
-def test_tenx_init_requires_features_filename_keyword():
-    with pytest.raises(TypeError):
-        TenX("some/dir")
+def test_tenx_init_requires_study_id_when_no_features_and_directory_not_raw(tmp_path):
+    with pytest.raises(ValueError, match="study_id must be provided"):
+        TenX(str(tmp_path))
+
+
+def test_tenx_init_per_sample_features_derives_study_id_from_raw_directory(tmp_path):
+    raw_dir = tmp_path / "GSE154932_RAW"
+    raw_dir.mkdir()
+
+    def fake_get_data_path(subpath=None):
+        if subpath is None:
+            return tmp_path
+        return tmp_path / subpath
+
+    with patch("signals_in_the_noise.io.tenx.get_data_path", side_effect=fake_get_data_path):
+        tenx = TenX(str(raw_dir))
+
+    assert tenx.study_id == "GSE154932"
+    assert tenx.features_path is None
+    assert tenx.directory == raw_dir
+
+
+def test_tenx_init_per_sample_features_with_explicit_study_id(tmp_path):
+    raw_dir = tmp_path / "raw_data"
+    raw_dir.mkdir()
+
+    def fake_get_data_path(subpath=None):
+        if subpath is None:
+            return tmp_path
+        return tmp_path / subpath
+
+    with patch("signals_in_the_noise.io.tenx.get_data_path", side_effect=fake_get_data_path):
+        tenx = TenX(str(raw_dir), study_id="MYSTUDY")
+
+    assert tenx.study_id == "MYSTUDY"
+    assert tenx.features_path is None
 
 
 # ---------------------------------------------------------------------------
@@ -123,6 +156,29 @@ def test_samples_to_file_dictionary_matches_barcodes_and_matrix(tmp_path):
     assert any("barcodes" in f for f in filenames)
     assert any("matrix" in f for f in filenames)
     assert "unrelated_file.txt" not in filenames
+
+
+def test_samples_to_file_dictionary_matches_per_sample_features(tmp_path):
+    raw_dir = tmp_path / "GSE154932_RAW"
+    raw_dir.mkdir()
+    (raw_dir / "SAMPLE1-barcodes.tsv.gz").touch()
+    (raw_dir / "SAMPLE1-matrix.mtx.gz").touch()
+    (raw_dir / "SAMPLE1-features.tsv.gz").touch()
+
+    def fake_get_data_path(subpath=None):
+        if subpath is None:
+            return tmp_path
+        return tmp_path / subpath
+
+    with patch("signals_in_the_noise.io.tenx.get_data_path", side_effect=fake_get_data_path):
+        tenx = TenX(str(raw_dir))
+        result = tenx._samples_to_file_dictionary()
+
+    assert "SAMPLE1" in result
+    filenames = result["SAMPLE1"]
+    assert any("barcodes" in f for f in filenames)
+    assert any("matrix" in f for f in filenames)
+    assert any("features" in f for f in filenames)
 
 
 def test_samples_to_file_dictionary_ignores_non_matching_files(tmp_path):
