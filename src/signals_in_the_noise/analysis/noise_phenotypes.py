@@ -10,7 +10,16 @@ logger = logging.getLogger(__name__)
 
 @dataclass(frozen=True)
 class Thresholds:
-    """Quantile boundaries for low, high, and moderate classification of one metric."""
+    """Quantile boundaries for low, high, and moderate classification of one metric.
+
+    Comparison operators are derived from which fields are set:
+
+    - ``q_low``: ``x >= quantile(q_low)``
+    - ``q_high``: ``x <= quantile(q_high)``
+    - ``q_mod_low`` and ``q_mod_high``: ``quantile(q_mod_low) < x < quantile(q_mod_high)``
+
+    When multiple fields are set, their conditions are combined with logical AND.
+    """
 
     q_low: float | None
     q_high: float | None
@@ -27,17 +36,49 @@ class PbsThresholds:
     log1p_n_genes_by_counts: Thresholds
 
 
-def _thresh(q_low: float, q_high: float) -> Thresholds:
-    return Thresholds(q_low, q_high, q_low, q_high)
+def _matches_threshold(series: pd.Series, thresholds: Thresholds) -> pd.Series:
+    """Return a boolean mask for cells matching the given quantile thresholds."""
+    conditions: list[pd.Series] = []
+
+    if thresholds.q_low is not None:
+        conditions.append(series >= series.quantile(thresholds.q_low))
+    if thresholds.q_high is not None:
+        conditions.append(series <= series.quantile(thresholds.q_high))
+    if thresholds.q_mod_low is not None and thresholds.q_mod_high is not None:
+        low_val = series.quantile(thresholds.q_mod_low)
+        high_val = series.quantile(thresholds.q_mod_high)
+        conditions.append((series > low_val) & (series < high_val))
+
+    if not conditions:
+        return pd.Series(True, index=series.index)
+
+    result = conditions[0]
+    for condition in conditions[1:]:
+        result = result & condition
+    return result
 
 
-_DEFAULT = _thresh(0.25, 0.95)
-
+_Q_LOW = 0.25
+_Q_HIGH = 0.95
 
 DEFAULT_PBS_THRESHOLDS: dict[str, PbsThresholds] = {
-    "pbs-1": PbsThresholds(_DEFAULT, _DEFAULT, _DEFAULT),
-    "pbs-2": PbsThresholds(_DEFAULT, _DEFAULT, _DEFAULT),
-    "pbs-3": PbsThresholds(_DEFAULT, _DEFAULT, _DEFAULT),
+    "pbs-1": PbsThresholds(
+        pct_counts_mt=Thresholds(q_low=_Q_HIGH, q_high=None, q_mod_low=None, q_mod_high=None),
+        log1p_total_counts=Thresholds(q_low=None, q_high=_Q_LOW, q_mod_low=None, q_mod_high=None),
+        log1p_n_genes_by_counts=Thresholds(q_low=None, q_high=_Q_LOW, q_mod_low=None, q_mod_high=None),
+    ),
+    "pbs-2": PbsThresholds(
+        pct_counts_mt=Thresholds(q_low=None, q_high=_Q_LOW, q_mod_low=None, q_mod_high=None),
+        log1p_total_counts=Thresholds(q_low=None, q_high=_Q_LOW, q_mod_low=None, q_mod_high=None),
+        log1p_n_genes_by_counts=Thresholds(
+            q_low=None, q_high=None, q_mod_low=_Q_LOW, q_mod_high=_Q_HIGH
+        ),
+    ),
+    "pbs-3": PbsThresholds(
+        pct_counts_mt=Thresholds(q_low=None, q_high=None, q_mod_low=_Q_LOW, q_mod_high=_Q_HIGH),
+        log1p_total_counts=Thresholds(q_low=None, q_high=None, q_mod_low=_Q_LOW, q_mod_high=_Q_HIGH),
+        log1p_n_genes_by_counts=Thresholds(q_low=_Q_HIGH, q_high=None, q_mod_low=None, q_mod_high=None),
+    ),
 }
 """Default per-PBS, per-metric quantile thresholds for noise subtype classification."""
 
@@ -89,24 +130,21 @@ def classify_noise_subtypes(
     genes = obs["log1p_n_genes_by_counts"]
 
     adata.obs["pbs-1"] = (
-        (mito >= mito.quantile(t1.pct_counts_mt.q_high))
-        & (rna <= rna.quantile(t1.log1p_total_counts.q_low))
-        & (genes <= genes.quantile(t1.log1p_n_genes_by_counts.q_low))
+        _matches_threshold(mito, t1.pct_counts_mt)
+        & _matches_threshold(rna, t1.log1p_total_counts)
+        & _matches_threshold(genes, t1.log1p_n_genes_by_counts)
     ).astype(bool)
 
     adata.obs["pbs-2"] = (
-        (mito <= mito.quantile(t2.pct_counts_mt.q_low))
-        & (rna <= rna.quantile(t2.log1p_total_counts.q_low))
-        & (genes > genes.quantile(t2.log1p_n_genes_by_counts.q_mod_low))
-        & (genes < genes.quantile(t2.log1p_n_genes_by_counts.q_mod_high))
+        _matches_threshold(mito, t2.pct_counts_mt)
+        & _matches_threshold(rna, t2.log1p_total_counts)
+        & _matches_threshold(genes, t2.log1p_n_genes_by_counts)
     ).astype(bool)
 
     adata.obs["pbs-3"] = (
-        (mito > mito.quantile(t3.pct_counts_mt.q_mod_low))
-        & (mito < mito.quantile(t3.pct_counts_mt.q_mod_high))
-        & (rna > rna.quantile(t3.log1p_total_counts.q_mod_low))
-        & (rna < rna.quantile(t3.log1p_total_counts.q_mod_high))
-        & (genes >= genes.quantile(t3.log1p_n_genes_by_counts.q_high))
+        _matches_threshold(mito, t3.pct_counts_mt)
+        & _matches_threshold(rna, t3.log1p_total_counts)
+        & _matches_threshold(genes, t3.log1p_n_genes_by_counts)
     ).astype(bool)
 
     logger.debug(
