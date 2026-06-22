@@ -39,7 +39,28 @@ class PbsThresholds:
     log1p_n_genes_by_counts: Thresholds
 
 
-def _matches_threshold(series: pd.Series, thresholds: Thresholds) -> pd.Series:
+def value_matches_threshold(
+    value: float, series: pd.Series, thresholds: Thresholds
+) -> bool:
+    """Return whether a single metric value matches the quantile thresholds."""
+    conditions: list[bool] = []
+
+    if thresholds.q_low is not None:
+        conditions.append(value >= series.quantile(thresholds.q_low))
+    if thresholds.q_high is not None:
+        conditions.append(value <= series.quantile(thresholds.q_high))
+    if thresholds.q_mod_low is not None and thresholds.q_mod_high is not None:
+        low_val = series.quantile(thresholds.q_mod_low)
+        high_val = series.quantile(thresholds.q_mod_high)
+        conditions.append((value > low_val) and (value < high_val))
+
+    if not conditions:
+        return True
+
+    return all(conditions)
+
+
+def matches_threshold(series: pd.Series, thresholds: Thresholds) -> pd.Series:
     """Return a boolean mask for cells matching the given quantile thresholds."""
     conditions: list[pd.Series] = []
 
@@ -59,6 +80,11 @@ def _matches_threshold(series: pd.Series, thresholds: Thresholds) -> pd.Series:
     for condition in conditions[1:]:
         result = result & condition
     return result
+
+
+def _matches_threshold(series: pd.Series, thresholds: Thresholds) -> pd.Series:
+    """Return a boolean mask for cells matching the given quantile thresholds."""
+    return matches_threshold(series, thresholds)
 
 
 _Q_LOW = 0.25

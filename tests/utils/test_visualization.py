@@ -3,6 +3,7 @@
 import matplotlib
 matplotlib.use("Agg")  # non-interactive backend for CI
 
+import matplotlib.colors as mcolors
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -10,6 +11,7 @@ import pytest
 import scipy.sparse as sp
 from anndata import AnnData
 
+from signals_in_the_noise.analysis.noise_phenotypes import Thresholds, matches_threshold
 from signals_in_the_noise.utils.visualization import (
     plot_empty_cell_violin_comparison,
     plot_gene_signature_score_distribution,
@@ -17,6 +19,8 @@ from signals_in_the_noise.utils.visualization import (
     plot_noise_subtype_comparison,
     plot_pathway_heatmap,
     plot_score_heatmap,
+    umap_threshold_colormap,
+    umap_threshold_plot_order,
 )
 
 
@@ -370,3 +374,48 @@ def test_plot_gene_signature_score_distribution_does_not_raise_on_valid_input():
     scores = pd.Series([0.1, -0.2, 0.3, -0.4, 0.5])
     plot_gene_signature_score_distribution(scores, "basal")
     plt.close("all")
+
+
+def test_umap_threshold_colormap_highlights_q_high_tail():
+    values = pd.Series(np.linspace(0.0, 10.0, 101))
+    thresholds = Thresholds(q_low=None, q_high=0.25, q_mod_low=None, q_mod_high=None)
+    cmap, vmin, vmax = umap_threshold_colormap(values, thresholds)
+
+    cut = values.quantile(0.25)
+    in_color = cmap((cut - vmin) / (vmax - vmin))
+    out_color = cmap((cut + 0.01 - vmin) / (vmax - vmin))
+    expected_in = mcolors.to_rgba("#0072B2", alpha=1.0)
+    expected_out = mcolors.to_rgba("#E69F00", alpha=0.5)
+
+    assert np.allclose(in_color, expected_in)
+    assert np.allclose(out_color, expected_out)
+
+
+def test_umap_threshold_colormap_highlights_moderate_band():
+    values = pd.Series(np.linspace(0.0, 10.0, 101))
+    thresholds = Thresholds(q_low=None, q_high=None, q_mod_low=0.25, q_mod_high=0.75)
+    cmap, vmin, vmax = umap_threshold_colormap(values, thresholds)
+
+    low_cut = values.quantile(0.25)
+    high_cut = values.quantile(0.75)
+    mid = (low_cut + high_cut) / 2
+    expected_in = mcolors.to_rgba("#0072B2", alpha=1.0)
+    expected_out = mcolors.to_rgba("#E69F00", alpha=0.5)
+
+    mid_color = cmap((mid - vmin) / (vmax - vmin))
+    low_color = cmap((low_cut - vmin) / (vmax - vmin))
+    high_color = cmap((high_cut - vmin) / (vmax - vmin))
+
+    assert np.allclose(mid_color, expected_in)
+    assert np.allclose(low_color, expected_out)
+    assert np.allclose(high_color, expected_out)
+
+
+def test_umap_threshold_plot_order_draws_matching_cells_last():
+    values = pd.Series([1.0, 2.0, 3.0, 4.0])
+    thresholds = Thresholds(q_low=None, q_high=0.5, q_mod_low=None, q_mod_high=None)
+    order = umap_threshold_plot_order(values, thresholds)
+    match = matches_threshold(values, thresholds)
+
+    assert match.tolist() == [True, True, False, False]
+    assert list(match.iloc[order]) == [False, False, True, True]

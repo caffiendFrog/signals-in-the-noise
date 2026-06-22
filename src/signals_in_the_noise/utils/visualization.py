@@ -11,6 +11,7 @@ import scipy.sparse as sp
 import seaborn as sns
 from anndata import AnnData
 
+from signals_in_the_noise.analysis.noise_phenotypes import Thresholds, matches_threshold, value_matches_threshold
 from signals_in_the_noise.analysis.statistics import fdr_to_stars
 
 logger = logging.getLogger(__name__)
@@ -394,68 +395,99 @@ def plot_gene_signature_score_distribution(
     return ax
 
 
-def umap_range_palette(
-    lo: float,
-    hi: float,
+def umap_threshold_colormap(
+    values: pd.Series | np.ndarray,
+    thresholds: Thresholds,
     *,
-    vmin: float,
-    vmax: float,
-    cmap: str = "gist_heat",
-    out_of_range_color: str = "#CCCCCC",
-    n_saturated: int = 256,
-) -> mcolors.LinearSegmentedColormap:
-    """Build a colormap for UMAP continuous coloring with a focused value range.
+    vmin: float | None = None,
+    vmax: float | None = None,
+    in_range_color: str = "#0072B2",
+    out_of_range_color: str = "#E69F00",
+    out_of_range_alpha: float = 0.5,
+    n_samples: int = 256,
+) -> tuple[mcolors.LinearSegmentedColormap, float, float]:
+    """Build a UMAP colormap that highlights cells matching PBS-style thresholds.
 
-    Values mapped to ``[lo, hi]`` (after normalizing against ``vmin`` and
-    ``vmax``) are drawn from ``cmap`` at full saturation.  Values below ``lo``
-    or above ``hi`` are rendered as ``out_of_range_color`` (grey by default).
+    Cells whose metric values satisfy ``thresholds`` (same rules as
+    :func:`~signals_in_the_noise.analysis.noise_phenotypes.matches_threshold`)
+    are drawn as ``in_range_color`` at full opacity.  All other values are
+    drawn as ``out_of_range_color`` at ``out_of_range_alpha`` opacity.
 
-    Intended for ``sc.pl.umap(..., color=[metric], cmap=..., vmin=..., vmax=...)``.
+    Intended for::
+
+        order = umap_threshold_plot_order(metric, thresholds)
+        cmap, vmin, vmax = umap_threshold_colormap(metric, thresholds)
+        sc.pl.umap(
+            adata[order],
+            color=[metric_name],
+            cmap=cmap,
+            vmin=vmin,
+            vmax=vmax,
+            sort_order=False,
+        )
+
+    .. note::
+
+        Always pass ``sort_order=False`` and subset with
+        :func:`umap_threshold_plot_order`.  Scanpy's default
+        ``sort_order=True`` draws higher metric values on top, which can hide
+        threshold-matching cells when they have lower values (e.g. ``q_high``).
 
     Args:
-        lo: Lower bound of the saturated range (in data units).
-        hi: Upper bound of the saturated range (in data units).
-        vmin: Minimum value used for normalization (typically the metric minimum).
-        vmax: Maximum value used for normalization (typically the metric maximum).
-        cmap: Base Matplotlib colormap name for in-range values.
-            Defaults to ``'gist_heat'``.
-        out_of_range_color: Color for out-of-range values.  Defaults to ``'#CCCCCC'``.
-        n_saturated: Number of samples taken from ``cmap`` across ``[lo, hi]``.
+        values: Per-cell metric values used to resolve quantile cutoffs.
+        thresholds: Quantile threshold definition for the metric.
+        vmin: Lower color-scale limit.  Defaults to ``values.min()``.
+        vmax: Upper color-scale limit.  Defaults to ``values.max()``.
+        in_range_color: Solid color for threshold-matching values.
+            Defaults to ``'#0072B2'``.
+        out_of_range_color: Color for non-matching values.
+            Defaults to ``'#E69F00'``.
+        out_of_range_alpha: Opacity for non-matching values.  Defaults to ``0.5``.
+        n_samples: Number of color stops sampled across ``[vmin, vmax]``.
             Defaults to ``256``.
 
     Returns:
-        A :class:`~matplotlib.colors.LinearSegmentedColormap` suitable for UMAP plots.
+        ``(colormap, vmin, vmax)`` — pass all three to :func:`scanpy.pl.umap`.
     """
-    if vmax <= vmin:
-        raise ValueError(f"vmax ({vmax}) must be greater than vmin ({vmin}).")
-    if hi <= lo:
-        raise ValueError(f"hi ({hi}) must be greater than lo ({lo}).")
+    series = values if isinstance(values, pd.Series) else pd.Series(np.asarray(values, dtype=float))
+    vmin_f = float(vmin if vmin is not None else series.min())
+    vmax_f = float(vmax if vmax is not None else series.max())
 
-    grey = mcolors.to_rgb(out_of_range_color)
-    base_cmap = plt.get_cmap(cmap)
+    if vmax_f <= vmin_f:
+        raise ValueError(f"vmax ({vmax_f}) must be greater than vmin ({vmin_f}).")
 
-    span = vmax - vmin
-    t_lo = float(np.clip((lo - vmin) / span, 0.0, 1.0))
-    t_hi = float(np.clip((hi - vmin) / span, 0.0, 1.0))
+    in_rgba = mcolors.to_rgba(in_range_color, alpha=1.0)
+    out_rgba = mcolors.to_rgba(out_of_range_color, alpha=out_of_range_alpha)
 
-    if t_lo >= t_hi:
-        return mcolors.LinearSegmentedColormap.from_list(
-            "umap_range",
-            [(0.0, grey), (1.0, grey)],
-        )
-
-    stops: list[tuple[float, tuple[float, float, float]]] = []
-    if t_lo > 0.0:
-        stops.extend([(0.0, grey), (t_lo, grey)])
-
-    sat_positions = np.linspace(t_lo, t_hi, n_saturated)
-    sat_colors = base_cmap(np.linspace(0.0, 1.0, n_saturated))
-    stops.extend(
-        (float(pos), tuple(color[:3]))
-        for pos, color in zip(sat_positions, sat_colors)
+    sample_values = np.linspace(vmin_f, vmax_f, n_samples)
+    match_mask = np.array(
+        [value_matches_threshold(float(value), series, thresholds) for value in sample_values]
     )
 
-    if t_hi < 1.0:
-        stops.extend([(t_hi, grey), (1.0, grey)])
+    stops: list[tuple[float, tuple[float, float, float, float]]] = []
+    for value, matched in zip(sample_values, match_mask):
+        position = float((value - vmin_f) / (vmax_f - vmin_f))
+        stops.append((position, in_rgba if matched else out_rgba))
 
-    return mcolors.LinearSegmentedColormap.from_list("umap_range", stops)
+    return mcolors.LinearSegmentedColormap.from_list("umap_threshold", stops), vmin_f, vmax_f
+
+
+def umap_threshold_plot_order(
+    values: pd.Series | np.ndarray,
+    thresholds: Thresholds,
+) -> np.ndarray:
+    """Return obs row indices that draw threshold-matching cells on top.
+
+    Non-matching (grey) cells are ordered first; matching (saturated) cells are
+    ordered last so they are not obscured in the scatter plot.
+
+    Args:
+        values: Per-cell metric values used to resolve quantile cutoffs.
+        thresholds: Quantile threshold definition for the metric.
+
+    Returns:
+        Integer index array suitable for ``adata[order]``.
+    """
+    series = values if isinstance(values, pd.Series) else pd.Series(np.asarray(values, dtype=float))
+    match = matches_threshold(series, thresholds)
+    return np.argsort(match.to_numpy(), kind="stable")
