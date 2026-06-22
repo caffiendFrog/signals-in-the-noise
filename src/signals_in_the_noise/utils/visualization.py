@@ -2,6 +2,7 @@ import logging
 import math
 
 import matplotlib.axes
+import matplotlib.colors as mcolors
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -391,3 +392,70 @@ def plot_gene_signature_score_distribution(
     ax.legend()
 
     return ax
+
+
+def umap_range_palette(
+    lo: float,
+    hi: float,
+    *,
+    vmin: float,
+    vmax: float,
+    cmap: str = "gist_heat",
+    out_of_range_color: str = "#CCCCCC",
+    n_saturated: int = 256,
+) -> mcolors.LinearSegmentedColormap:
+    """Build a colormap for UMAP continuous coloring with a focused value range.
+
+    Values mapped to ``[lo, hi]`` (after normalizing against ``vmin`` and
+    ``vmax``) are drawn from ``cmap`` at full saturation.  Values below ``lo``
+    or above ``hi`` are rendered as ``out_of_range_color`` (grey by default).
+
+    Intended for ``sc.pl.umap(..., color=[metric], cmap=..., vmin=..., vmax=...)``.
+
+    Args:
+        lo: Lower bound of the saturated range (in data units).
+        hi: Upper bound of the saturated range (in data units).
+        vmin: Minimum value used for normalization (typically the metric minimum).
+        vmax: Maximum value used for normalization (typically the metric maximum).
+        cmap: Base Matplotlib colormap name for in-range values.
+            Defaults to ``'gist_heat'``.
+        out_of_range_color: Color for out-of-range values.  Defaults to ``'#CCCCCC'``.
+        n_saturated: Number of samples taken from ``cmap`` across ``[lo, hi]``.
+            Defaults to ``256``.
+
+    Returns:
+        A :class:`~matplotlib.colors.LinearSegmentedColormap` suitable for UMAP plots.
+    """
+    if vmax <= vmin:
+        raise ValueError(f"vmax ({vmax}) must be greater than vmin ({vmin}).")
+    if hi <= lo:
+        raise ValueError(f"hi ({hi}) must be greater than lo ({lo}).")
+
+    grey = mcolors.to_rgb(out_of_range_color)
+    base_cmap = plt.get_cmap(cmap)
+
+    span = vmax - vmin
+    t_lo = float(np.clip((lo - vmin) / span, 0.0, 1.0))
+    t_hi = float(np.clip((hi - vmin) / span, 0.0, 1.0))
+
+    if t_lo >= t_hi:
+        return mcolors.LinearSegmentedColormap.from_list(
+            "umap_range",
+            [(0.0, grey), (1.0, grey)],
+        )
+
+    stops: list[tuple[float, tuple[float, float, float]]] = []
+    if t_lo > 0.0:
+        stops.extend([(0.0, grey), (t_lo, grey)])
+
+    sat_positions = np.linspace(t_lo, t_hi, n_saturated)
+    sat_colors = base_cmap(np.linspace(0.0, 1.0, n_saturated))
+    stops.extend(
+        (float(pos), tuple(color[:3]))
+        for pos, color in zip(sat_positions, sat_colors)
+    )
+
+    if t_hi < 1.0:
+        stops.extend([(t_hi, grey), (1.0, grey)])
+
+    return mcolors.LinearSegmentedColormap.from_list("umap_range", stops)

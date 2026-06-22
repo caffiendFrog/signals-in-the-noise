@@ -6,6 +6,9 @@ import pytest
 from anndata import AnnData
 
 from signals_in_the_noise.analysis.noise_phenotypes import (
+    PbsThresholds,
+    Thresholds,
+    _matches_threshold,
     aggregate_noise_subtypes_by_cancer_type,
     classify_noise_subtypes,
 )
@@ -102,6 +105,139 @@ def _make_adata_with_known_pbs_3(seed: int = 42) -> AnnData:
         index=[f"cell_{i}" for i in range(n)],
     )
     return AnnData(obs=obs)
+
+
+# ---------------------------------------------------------------------------
+# _matches_threshold tests
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture()
+def metric_series() -> pd.Series:
+    """Ascending QC metric with predictable quantiles for threshold tests."""
+    return pd.Series(
+        [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0],
+        index=[f"cell_{i}" for i in range(10)],
+    )
+
+
+def test_matches_threshold_no_conditions_returns_all_true(metric_series):
+    thresholds = Thresholds(q_low=None, q_high=None, q_mod_low=None, q_mod_high=None)
+    result = _matches_threshold(metric_series, thresholds)
+    assert result.dtype == bool
+    assert result.all()
+    assert result.index.equals(metric_series.index)
+
+
+def test_matches_threshold_q_low_uses_greater_than_or_equal(metric_series):
+    thresholds = Thresholds(q_low=0.5, q_high=None, q_mod_low=None, q_mod_high=None)
+    cutoff = metric_series.quantile(0.5)
+    result = _matches_threshold(metric_series, thresholds)
+    assert result.equals(metric_series >= cutoff)
+    assert result.loc["cell_9"]
+    assert not result.loc["cell_0"]
+
+
+def test_matches_threshold_q_low_includes_value_at_quantile(metric_series):
+    thresholds = Thresholds(q_low=0.0, q_high=None, q_mod_low=None, q_mod_high=None)
+    result = _matches_threshold(metric_series, thresholds)
+    assert result.loc["cell_0"]
+
+
+def test_matches_threshold_q_high_uses_less_than_or_equal(metric_series):
+    thresholds = Thresholds(q_low=None, q_high=0.5, q_mod_low=None, q_mod_high=None)
+    cutoff = metric_series.quantile(0.5)
+    result = _matches_threshold(metric_series, thresholds)
+    assert result.equals(metric_series <= cutoff)
+    assert result.loc["cell_0"]
+    assert not result.loc["cell_9"]
+
+
+def test_matches_threshold_q_high_includes_value_at_quantile(metric_series):
+    thresholds = Thresholds(q_low=None, q_high=1.0, q_mod_low=None, q_mod_high=None)
+    result = _matches_threshold(metric_series, thresholds)
+    assert result.loc["cell_9"]
+
+
+def test_matches_threshold_q_mod_uses_strict_between_bounds(metric_series):
+    thresholds = Thresholds(q_low=None, q_high=None, q_mod_low=0.25, q_mod_high=0.75)
+    low_val = metric_series.quantile(0.25)
+    high_val = metric_series.quantile(0.75)
+    result = _matches_threshold(metric_series, thresholds)
+    expected = (metric_series > low_val) & (metric_series < high_val)
+    assert result.equals(expected)
+
+
+def test_matches_threshold_q_mod_excludes_values_at_quantile_bounds(metric_series):
+    thresholds = Thresholds(q_low=None, q_high=None, q_mod_low=0.0, q_mod_high=1.0)
+    result = _matches_threshold(metric_series, thresholds)
+    assert not result.loc["cell_0"]
+    assert not result.loc["cell_9"]
+    assert result.loc["cell_5"]
+
+
+def test_matches_threshold_combined_conditions_use_logical_and(metric_series):
+    thresholds = Thresholds(q_low=0.25, q_high=0.75, q_mod_low=None, q_mod_high=None)
+    low_cutoff = metric_series.quantile(0.25)
+    high_cutoff = metric_series.quantile(0.75)
+    result = _matches_threshold(metric_series, thresholds)
+    expected = (metric_series >= low_cutoff) & (metric_series <= high_cutoff)
+    assert result.equals(expected)
+
+
+def test_matches_threshold_ignores_partial_moderate_bounds(metric_series):
+    """Only one moderate bound set should not add a moderate filter."""
+    thresholds_low_only = Thresholds(q_low=None, q_high=None, q_mod_low=0.25, q_mod_high=None)
+    thresholds_high_only = Thresholds(q_low=None, q_high=None, q_mod_low=None, q_mod_high=0.75)
+    assert _matches_threshold(metric_series, thresholds_low_only).all()
+    assert _matches_threshold(metric_series, thresholds_high_only).all()
+
+
+def _iscb_scs_pbs_thresholds() -> dict[str, PbsThresholds]:
+    """ISCB SCS notebook thresholds expressed with current field semantics."""
+    return {
+        "pbs-1": PbsThresholds(
+            pct_counts_mt=Thresholds(q_low=0.85, q_high=None, q_mod_low=None, q_mod_high=None),
+            log1p_total_counts=Thresholds(q_low=None, q_high=0.3, q_mod_low=None, q_mod_high=None),
+            log1p_n_genes_by_counts=Thresholds(
+                q_low=None, q_high=0.3, q_mod_low=None, q_mod_high=None
+            ),
+        ),
+        "pbs-2": PbsThresholds(
+            pct_counts_mt=Thresholds(q_low=None, q_high=0.25, q_mod_low=None, q_mod_high=None),
+            log1p_total_counts=Thresholds(q_low=None, q_high=0.3, q_mod_low=None, q_mod_high=None),
+            log1p_n_genes_by_counts=Thresholds(
+                q_low=None, q_high=None, q_mod_low=0.45, q_mod_high=0.85
+            ),
+        ),
+        "pbs-3": PbsThresholds(
+            pct_counts_mt=Thresholds(q_low=None, q_high=None, q_mod_low=0.3, q_mod_high=0.65),
+            log1p_total_counts=Thresholds(q_low=None, q_high=None, q_mod_low=0.5, q_mod_high=0.85),
+            log1p_n_genes_by_counts=Thresholds(
+                q_low=0.95, q_high=None, q_mod_low=None, q_mod_high=None
+            ),
+        ),
+    }
+
+
+def test_classify_noise_subtypes_iscb_thresholds_are_selective():
+    """Custom ISCB thresholds should classify a small minority of cells per subtype."""
+    rng = np.random.default_rng(42)
+    n = 1000
+    adata = AnnData(
+        obs=pd.DataFrame(
+            {
+                "pct_counts_mt": rng.uniform(1.0, 99.0, n),
+                "log1p_total_counts": rng.uniform(1.0, 99.0, n),
+                "log1p_n_genes_by_counts": rng.uniform(1.0, 99.0, n),
+            }
+        )
+    )
+    classify_noise_subtypes(adata, pbs_thresholds=_iscb_scs_pbs_thresholds())
+    counts = adata.obs[["pbs-1", "pbs-2", "pbs-3"]].sum()
+    assert counts["pbs-1"] == 23
+    assert counts["pbs-2"] == 33
+    assert counts["pbs-3"] == 6
 
 
 # ---------------------------------------------------------------------------

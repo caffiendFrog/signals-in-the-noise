@@ -14,11 +14,14 @@ class Thresholds:
 
     Comparison operators are derived from which fields are set:
 
-    - ``q_low``: ``x >= quantile(q_low)``
-    - ``q_high``: ``x <= quantile(q_high)``
+    - ``q_low``: ``x >= quantile(q_low)`` (high tail)
+    - ``q_high``: ``x <= quantile(q_high)`` (low tail)
     - ``q_mod_low`` and ``q_mod_high``: ``quantile(q_mod_low) < x < quantile(q_mod_high)``
 
     When multiple fields are set, their conditions are combined with logical AND.
+
+    Field names describe the comparison direction, not the phenotype label. For
+    example, to require low total RNA set ``q_high`` (not ``q_low``).
     """
 
     q_low: float | None
