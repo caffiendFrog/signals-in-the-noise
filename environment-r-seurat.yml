@@ -4,12 +4,17 @@
 #   conda activate signals-in-the-noise
 #   conda env update -n signals-in-the-noise -f environment-r-seurat.yml
 #
-# Then restart the Jupyter kernel. Do not use install.packages for Seurat on
-# SageMaker — CRAN source builds need system libs that are not present;
-# conda-forge provides prebuilt binaries (r-seurat, r-png, r-igraph, …).
+# Then restart the Jupyter kernel.
+#
+# Channel notes:
+#   - r-seurat and most R deps: conda-forge
+#   - bioconductor-edger / bioconductor-limma: bioconda (not on conda-forge)
+#   - Channel order matters: conda-forge before bioconda (Bioconda recommendation).
+# Do not use install.packages for Seurat on SageMaker — use these binaries.
 name: signals-in-the-noise
 channels:
   - conda-forge
+  - bioconda
 dependencies:
   - r-base>=4.3
   - r-seurat
