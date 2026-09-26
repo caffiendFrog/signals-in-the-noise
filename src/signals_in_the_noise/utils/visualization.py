@@ -395,7 +395,7 @@ def plot_gene_signature_score_distribution(
     return ax
 
 
-def umap_threshold_colormap(
+def  umap_threshold_colormap(
     values: pd.Series | np.ndarray,
     thresholds: Thresholds,
     *,
@@ -405,13 +405,14 @@ def umap_threshold_colormap(
     out_of_range_color: str = "#E69F00",
     out_of_range_alpha: float = 0.5,
     n_samples: int = 256,
-) -> tuple[mcolors.LinearSegmentedColormap, float, float]:
+) -> tuple[mcolors.ListedColormap, float, float]:
     """Build a UMAP colormap that highlights cells matching PBS-style thresholds.
 
     Cells whose metric values satisfy ``thresholds`` (same rules as
     :func:`~signals_in_the_noise.analysis.noise_phenotypes.matches_threshold`)
     are drawn as ``in_range_color`` at full opacity.  All other values are
-    drawn as ``out_of_range_color`` at ``out_of_range_alpha`` opacity.
+    drawn as ``out_of_range_color`` blended onto white at ``out_of_range_alpha``
+    (i.e. an opaque, print-safe equivalent of that partial opacity).
 
     Intended for::
 
@@ -457,19 +458,29 @@ def umap_threshold_colormap(
         raise ValueError(f"vmax ({vmax_f}) must be greater than vmin ({vmin_f}).")
 
     in_rgba = mcolors.to_rgba(in_range_color, alpha=1.0)
-    out_rgba = mcolors.to_rgba(out_of_range_color, alpha=out_of_range_alpha)
+    # Print-safe: bake the out-of-range alpha onto a white background so the
+    # exported colormap is fully opaque. Semi-transparent warm colors (e.g. the
+    # amber highlight) otherwise flatten to a muddy brown/taupe when a print RIP
+    # converts the transparent PNG/PDF to CMYK. Blending here preserves the exact
+    # on-white appearance while keeping every pixel opaque.
+    _out_rgb = mcolors.to_rgb(out_of_range_color)
+    out_rgba = tuple(
+        channel * out_of_range_alpha + (1.0 - out_of_range_alpha) for channel in _out_rgb
+    ) + (1.0,)
 
     sample_values = np.linspace(vmin_f, vmax_f, n_samples)
     match_mask = np.array(
         [value_matches_threshold(float(value), series, thresholds) for value in sample_values]
     )
 
-    stops: list[tuple[float, tuple[float, float, float, float]]] = []
-    for value, matched in zip(sample_values, match_mask):
-        position = float((value - vmin_f) / (vmax_f - vmin_f))
-        stops.append((position, in_rgba if matched else out_rgba))
+    # Hard-stepped LUT: every entry is either the in-range or out-of-range color.
+    # A LinearSegmentedColormap interpolates between adjacent blue and amber
+    # stops at the threshold boundary, and those blue<->amber blends read as
+    # muddy brown; a ListedColormap keeps each entry discrete so no blending
+    # (and therefore no brown transition band) can occur.
+    color_list = [in_rgba if matched else out_rgba for matched in match_mask]
 
-    return mcolors.LinearSegmentedColormap.from_list("umap_threshold", stops), vmin_f, vmax_f
+    return mcolors.ListedColormap(color_list, name="umap_threshold"), vmin_f, vmax_f
 
 
 def umap_threshold_plot_order(

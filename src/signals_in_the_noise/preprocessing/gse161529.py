@@ -6,6 +6,7 @@ import anndata as ad
 import numpy as np
 import pandas as pd
 import scanpy as sc
+from matplotlib import pyplot as plt
 
 from openTSNE import TSNE
 from scipy import sparse
@@ -17,6 +18,27 @@ from signals_in_the_noise.preprocessing.base import Preprocessor
 from signals_in_the_noise.utils.log import get_logger
 
 logger = get_logger(__name__)
+
+plt.rcParams["pdf.fonttype"] = 42  # embed TrueType fonts so print shops don't substitute them
+plt.rcParams["ps.fonttype"] = 42
+
+
+def _save_high_res(base_path, fig=None, dpi=600, rasterize_points=True):
+    """Save print-ready copies next to the on-screen PNG.
+
+    Emits ``<name>-high-res.pdf`` (vector text/axes; crisp at any poster size) and
+    ``<name>-high-res.png`` (600 dpi raster fallback). For dense scatter plots
+    (t-SNE/UMAP) the point cloud is rasterized inside the PDF so the file stays
+    small while labels and axes remain sharp vectors.
+    """
+    figure = fig if fig is not None else plt.gcf()
+    if rasterize_points:
+        for ax in figure.axes:
+            for coll in ax.collections:
+                coll.set_rasterized(True)
+    stem = Path(base_path).with_suffix("")
+    figure.savefig(f"{stem}-high-res.pdf", dpi=dpi, bbox_inches="tight", transparent=True)
+    figure.savefig(f"{stem}-high-res.png", dpi=dpi, bbox_inches="tight", transparent=True)
 
 
 class GSE161529(Preprocessor):
@@ -522,16 +544,52 @@ class GSE161529(Preprocessor):
         X_embedding = tsne.fit(np.round(X_pca, decimals=10))
         adata.obsm["X_tsne"] = np.asarray(X_embedding)
 
-    def visualize_tsne(self, adata, color, *, use_raw: bool = False, plot_kwargs: dict = None):
+    def visualize_tsne(self, adata, color, *,  filename: str=None, use_raw: bool = False, invert: bool = False, title: str = None, xlabel: str = None, ylabel: str = None, plot_kwargs: dict = None):
         """Render a t-SNE plot colored by the given variable.
 
         Args:
             adata: AnnData object with ``obsm['X_tsne']`` populated.
             color: Variable name(s) to color by.
+            filename: Filename to save the figure.
             use_raw: Whether to use the ``.raw`` attribute for color values.
+            invert: Use dark foreground colors (text, spines, ticks) for display
+                on a light background instead of the default light-on-dark theme.
+            title: Axis title to set on every subplot. Pass ``""`` to hide it.
+            xlabel: X-axis label to set on every subplot.
+            ylabel: Y-axis label to set on every subplot.
             plot_kwargs: Additional kwargs forwarded to ``sc.pl.tsne``.
         """
-        default_plot_kwargs = {"color": color, "use_raw": use_raw}
+        default_plot_kwargs = {"color": color, "use_raw": use_raw, "show": False}
         if plot_kwargs:
             default_plot_kwargs.update(plot_kwargs)
-        sc.pl.tsne(adata, **default_plot_kwargs)
+        axes = sc.pl.tsne(adata, **default_plot_kwargs)
+        for ax in np.atleast_1d(axes).ravel():
+            ax.spines["top"].set_visible(False)
+            ax.spines["right"].set_visible(False)
+            ax.xaxis.set_ticks_position("bottom")
+            ax.yaxis.set_ticks_position("left")
+            if title is not None:
+                ax.set_title(title)
+            if xlabel is not None:
+                ax.set_xlabel(xlabel)
+            if ylabel is not None:
+                ax.set_ylabel(ylabel)
+            if invert:
+                fg = "#00274C"
+                for spine in ax.spines.values():
+                    spine.set_color(fg)
+                ax.tick_params(colors=fg)
+                ax.xaxis.label.set_color(fg)
+                ax.yaxis.label.set_color(fg)
+                ax.title.set_color(fg)
+                legend = ax.get_legend()
+                if legend is not None:
+                    if legend.get_title() is not None:
+                        legend.get_title().set_color(fg)
+                    for text in legend.get_texts():
+                        text.set_color(fg)
+
+        if filename is not None:
+            plt.savefig(filename, dpi=300, bbox_inches="tight", transparent=True)
+            _save_high_res(filename)
+        plt.show()
