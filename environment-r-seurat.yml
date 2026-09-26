@@ -1,0 +1,25 @@
+# Optional overlay for faithful Seurat/edgeR notebooks (e.g. GSE161529/necb).
+# Apply into the existing signals-in-the-noise env on Linux/SageMaker:
+#
+#   conda activate signals-in-the-noise
+#   conda env update -n signals-in-the-noise -f environment-r-seurat.yml
+#
+# Then restart the Jupyter kernel. Do not use install.packages for Seurat on
+# SageMaker — CRAN source builds need system libs that are not present;
+# conda-forge provides prebuilt binaries (r-seurat, r-png, r-igraph, …).
+name: signals-in-the-noise
+channels:
+  - conda-forge
+dependencies:
+  - r-base>=4.3
+  - r-seurat
+  - r-igraph
+  - r-png
+  - r-reticulate
+  - r-ggplot2
+  - r-pheatmap
+  - r-matrix
+  - bioconductor-edger
+  - bioconductor-limma
+  - libpng
+  - zlib
