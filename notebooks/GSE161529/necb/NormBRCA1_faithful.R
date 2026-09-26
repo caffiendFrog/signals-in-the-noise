@@ -10,22 +10,30 @@
 ###     ... (all 12 samples)
 ###
 ### Usage:
-###   Rscript NormBRCA1_faithful.R <data_root> <output_dir>
+###   Rscript NormBRCA1_faithful.R <data_root> <output_dir> [skip_cell_qc]
+###
+### skip_cell_qc: optional; if "TRUE"/"true"/"1", skip SampleStats cell filtering
+###   (use when barcodes were already subsetted upstream, e.g. QC-pass ∪ PBS-2).
 ###
 ### Requires: Seurat, edgeR, limma, ggplot2, pheatmap  (scater optional for palettes)
 
 args <- commandArgs(trailingOnly = TRUE)
 if (length(args) < 2) {
-  stop("Usage: Rscript NormBRCA1_faithful.R <data_root> <output_dir>")
+  stop("Usage: Rscript NormBRCA1_faithful.R <data_root> <output_dir> [skip_cell_qc]")
 }
 data_root <- normalizePath(args[[1]], mustWork = TRUE)
 out_dir <- args[[2]]
+skip_cell_qc <- FALSE
+if (length(args) >= 3) {
+  skip_cell_qc <- tolower(args[[3]]) %in% c("true", "1", "yes")
+}
 dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
 out_dir <- normalizePath(out_dir, mustWork = TRUE)
 setwd(out_dir)
 
 message("data_root = ", data_root)
 message("out_dir   = ", out_dir)
+message("skip_cell_qc = ", skip_cell_qc)
 
 suppressPackageStartupMessages({
   library(Seurat)
@@ -111,24 +119,33 @@ for (i in seq_along(SamplesComb)) {
 }
 
 ### Cell filtering from SampleStats.txt (paper thresholds)
-SampleStats <- read.delim(file.path(data_root, "SampleStats.txt"), stringsAsFactors = FALSE)
-m <- match(Samples, SampleStats$SampleName)
-if (anyNA(m)) stop("SampleStats.txt missing rows for: ", paste(Samples[is.na(m)], collapse = ", "))
-SampleStats <- SampleStats[m, ]
+### Skipped when skip_cell_qc=TRUE (barcodes already curated upstream).
+if (!skip_cell_qc) {
+  SampleStats <- read.delim(file.path(data_root, "SampleStats.txt"), stringsAsFactors = FALSE)
+  m <- match(Samples, SampleStats$SampleName)
+  if (anyNA(m)) stop("SampleStats.txt missing rows for: ", paste(Samples[is.na(m)], collapse = ", "))
+  SampleStats <- SampleStats[m, ]
 
-mito_upper <- SampleStats$Mito
-nGenes_lower <- SampleStats$GeneLower
-nGenes_upper <- SampleStats$GeneUpper
-lib_upper <- SampleStats$LibSize
+  mito_upper <- SampleStats$Mito
+  nGenes_lower <- SampleStats$GeneLower
+  nGenes_upper <- SampleStats$GeneUpper
+  lib_upper <- SampleStats$LibSize
 
-for (i in seq_along(SamplesComb)) {
-  y <- get(DGE[[i]])
-  keep.mito <- y$samples$percent.mito < mito_upper[[i]]
-  keep.nGenes <- y$samples$nGenes > nGenes_lower[[i]] & y$samples$nGenes < nGenes_upper[[i]]
-  keep.nUMIs <- y$samples$lib.size < lib_upper[[i]]
-  keep <- keep.mito & keep.nGenes & keep.nUMIs
-  message(Samples[[i]], ": keeping ", sum(keep), " / ", length(keep), " cells")
-  assign(DGE[[i]], y[, keep])
+  for (i in seq_along(SamplesComb)) {
+    y <- get(DGE[[i]])
+    keep.mito <- y$samples$percent.mito < mito_upper[[i]]
+    keep.nGenes <- y$samples$nGenes > nGenes_lower[[i]] & y$samples$nGenes < nGenes_upper[[i]]
+    keep.nUMIs <- y$samples$lib.size < lib_upper[[i]]
+    keep <- keep.mito & keep.nGenes & keep.nUMIs
+    message(Samples[[i]], ": keeping ", sum(keep), " / ", length(keep), " cells")
+    assign(DGE[[i]], y[, keep])
+  }
+} else {
+  message("Skipping SampleStats cell QC (pre-filtered input).")
+  for (i in seq_along(SamplesComb)) {
+    y <- get(DGE[[i]])
+    message(Samples[[i]], ": ", ncol(y), " cells (no QC filter)")
+  }
 }
 
 ### Gene filtering (≥1% cells; valid Official; unique Official)
