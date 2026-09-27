@@ -10,16 +10,21 @@
 ###     ... (all 12 samples)
 ###
 ### Usage:
-###   Rscript NormBRCA1_faithful.R <data_root> <output_dir> [skip_cell_qc]
+###   Rscript NormBRCA1_faithful.R <data_root> <output_dir> [skip_cell_qc] [force]
 ###
 ### skip_cell_qc: optional; if "TRUE"/"true"/"1", skip SampleStats cell filtering
 ###   (use when barcodes were already subsetted upstream, e.g. QC-pass ∪ PBS-2).
+### force: optional; if "TRUE"/"true"/"1", recompute even when cached outputs exist.
+###   Also honored via env var NORMBRCA1_FORCE=1.
+###
+### Level-1 cache: if all completion markers already exist under <output_dir> and
+### force is false, exit immediately (no Seurat / edgeR work).
 ###
 ### Requires: Seurat, edgeR, limma, ggplot2, pheatmap  (scater optional for palettes)
 
 args <- commandArgs(trailingOnly = TRUE)
 if (length(args) < 2) {
-  stop("Usage: Rscript NormBRCA1_faithful.R <data_root> <output_dir> [skip_cell_qc]")
+  stop("Usage: Rscript NormBRCA1_faithful.R <data_root> <output_dir> [skip_cell_qc] [force]")
 }
 data_root <- normalizePath(args[[1]], mustWork = TRUE)
 out_dir <- args[[2]]
@@ -27,13 +32,53 @@ skip_cell_qc <- FALSE
 if (length(args) >= 3) {
   skip_cell_qc <- tolower(args[[3]]) %in% c("true", "1", "yes")
 }
+force <- FALSE
+if (length(args) >= 4) {
+  force <- tolower(args[[4]]) %in% c("true", "1", "yes")
+}
+force_env <- tolower(Sys.getenv("NORMBRCA1_FORCE", unset = ""))
+if (force_env %in% c("true", "1", "yes")) {
+  force <- TRUE
+}
 dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
 out_dir <- normalizePath(out_dir, mustWork = TRUE)
 setwd(out_dir)
 
+## Completion markers written at the end of a successful run
+complete_markers <- c(
+  "SeuratObject_NormB1Total.rds",
+  "SeuratObject_NormB1TotalSub.rds",
+  "NormB1Total_meta.RData",
+  "NormB1TotalSub_meta.RData",
+  "Fig4A.pdf",
+  "Fig4B.pdf",
+  "Fig4C.pdf",
+  "FigS1A-left.pdf",
+  "FigS1A-right.pdf",
+  "FigS1C.pdf",
+  "cluster_by_condition_counts.csv"
+)
+missing_markers <- complete_markers[!file.exists(file.path(out_dir, complete_markers))]
+cache_hit <- length(missing_markers) == 0L
+
 message("data_root = ", data_root)
 message("out_dir   = ", out_dir)
 message("skip_cell_qc = ", skip_cell_qc)
+message("force = ", force)
+message("cache_hit = ", cache_hit)
+
+if (cache_hit && !force) {
+  message(
+    "Cache hit: all completion markers present under ", out_dir,
+    ". Skipping Seurat/edgeR. Pass force=TRUE (4th arg) or set NORMBRCA1_FORCE=1 to recompute."
+  )
+  quit(save = "no", status = 0)
+}
+if (cache_hit && force) {
+  message("Force=TRUE: recomputing despite existing outputs.")
+} else if (!cache_hit) {
+  message("Cache miss; missing: ", paste(missing_markers, collapse = ", "))
+}
 
 suppressPackageStartupMessages({
   library(Seurat)
