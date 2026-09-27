@@ -12,7 +12,12 @@ import scipy.sparse as sp
 from anndata import AnnData
 
 from signals_in_the_noise.analysis.noise_phenotypes import Thresholds, matches_threshold
+from signals_in_the_noise.modeling.evaluation import PermutationResult
 from signals_in_the_noise.utils.visualization import (
+    plot_arm_draws,
+    plot_covariates_by_condition,
+    plot_permutation_nulls,
+    plot_specimen_qc_distributions,
     plot_empty_cell_violin_comparison,
     plot_gene_signature_score_distribution,
     plot_gsea_nes_heatmap,
@@ -419,3 +424,51 @@ def test_umap_threshold_plot_order_draws_matching_cells_last():
 
     assert match.tolist() == [True, True, False, False]
     assert list(match.iloc[order]) == [False, False, True, True]
+
+
+# ---------------------------------------------------------------------------
+# QC-confound plots
+# ---------------------------------------------------------------------------
+
+
+def test_plot_covariates_by_condition_titles_include_association():
+    table = pd.DataFrame({"condition": ["ER", "ER", "N", "N"], "depth": [3.0, 4.0, 1.0, 2.0], "mito": [1.0, 2.0, 1.0, 2.0]})
+    association = pd.DataFrame({"auc": [1.0], "q_value": [0.04]}, index=["depth"])
+    axes = plot_covariates_by_condition(table, ["depth", "mito"], association=association)
+    assert len(axes) == 2
+    assert "AUC=1.00" in axes[0].get_title()
+    assert axes[1].get_title() == "mito"
+    plt.close("all")
+
+
+def test_plot_arm_draws_draws_chance_line():
+    draws = pd.DataFrame({"arm": ["a", "a", "b", "b"], "cell_accuracy": [0.7, 0.8, 0.5, 0.55]})
+    ax = plot_arm_draws(draws, order=["a", "b"])
+    assert [t.get_text() for t in ax.get_yticklabels()] == ["a", "b"]
+    assert any(np.allclose(line.get_xdata(), 0.5) for line in ax.get_lines())
+    plt.close("all")
+
+
+def test_plot_permutation_nulls_one_panel_per_arm():
+    results = {
+        name: PermutationResult("specimen_auc", 0.9, np.array([0.4, 0.5, np.nan, 0.6]), 0.2)
+        for name in ("a", "b", "c")
+    }
+    axes = plot_permutation_nulls(results, num_cols=2)
+    assert len(axes) == 3
+    assert "p=0.200" in axes[0].get_title()
+    plt.close("all")
+
+
+def test_plot_specimen_qc_distributions_orders_specimens_by_condition():
+    obs = pd.DataFrame({"log1p_total_counts": [1.0, 2.0, 3.0], "is_noise": [1, 0, 0]})
+    axes = plot_specimen_qc_distributions(
+        {"s2": obs, "s1": obs, "s3": obs},
+        {"s1": "Normal", "s2": "ER", "s3": "ER"},
+        ["log1p_total_counts"],
+        population="retained",
+    )
+    assert len(axes) == 1
+    assert [t.get_text() for t in axes[0].get_xticklabels()] == ["s2", "s3", "s1"]
+    assert "retained" in axes[0].get_title()
+    plt.close("all")
