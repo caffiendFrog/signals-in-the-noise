@@ -1,5 +1,6 @@
 import logging
 import math
+from collections.abc import Iterable, Mapping
 
 import matplotlib.axes
 import matplotlib.colors as mcolors
@@ -502,3 +503,115 @@ def umap_threshold_plot_order(
     series = values if isinstance(values, pd.Series) else pd.Series(np.asarray(values, dtype=float))
     match = matches_threshold(series, thresholds)
     return np.argsort(match.to_numpy(), kind="stable")
+
+
+def plot_qc_metrics_by_donor(
+    cells: pd.DataFrame,
+    metrics: Mapping[str, str],
+    *,
+    palette: Mapping[str, str],
+    log_metrics: Iterable[str] = ("total_counts", "n_genes_by_counts"),
+    title: str | None = None,
+    axes: list[matplotlib.axes.Axes] | None = None,
+) -> list[matplotlib.axes.Axes]:
+    """Box plots of per-cell QC metrics for each donor, coloured by genotype.
+
+    Args:
+        cells: One row per cell with ``donor``, ``genotype`` and each metric column.
+        metrics: Mapping of metric column to axis label; one panel per metric.
+        palette: Genotype to colour.
+        log_metrics: Metrics drawn on a log y-axis.
+        title: Optional figure title.
+        axes: Pre-existing axes, one per metric. When ``None`` a new figure is created.
+
+    Returns:
+        List of axes, one per metric.
+    """
+    log_metrics = set(log_metrics)
+    if axes is None:
+        _, axes = get_figure_axes(
+            len(metrics), num_cols=len(metrics), subplot_size=(6, 5), super_title=title
+        )
+
+    for ax, (metric, label) in zip(axes, metrics.items()):
+        sns.boxplot(
+            data=cells,
+            x="donor",
+            y=metric,
+            hue="genotype",
+            palette=palette,
+            dodge=False,
+            showfliers=False,
+            log_scale=metric in log_metrics,
+            ax=ax,
+        )
+        ax.set_xlabel("")
+        ax.set_ylabel(label)
+        ax.tick_params(axis="x", rotation=90)
+        if ax is not axes[-1] and ax.get_legend() is not None:
+            ax.get_legend().remove()
+
+    return list(axes)
+
+
+def plot_donor_medians_by_genotype(
+    donor_summary: pd.DataFrame,
+    metrics: Mapping[str, str],
+    *,
+    palette: Mapping[str, str],
+    populations: Iterable[str] | None = None,
+    axes: list[matplotlib.axes.Axes] | None = None,
+) -> list[matplotlib.axes.Axes]:
+    """Strip plots of donor medians per genotype; one row per population, one column per metric.
+
+    Each point is one donor. A black bar marks the genotype median of donor medians,
+    the quantity compared between genotypes in Step 0.
+
+    Args:
+        donor_summary: Output of
+            :func:`~signals_in_the_noise.analysis.sample_comparability.summarize_donors`.
+        metrics: Mapping of metric name to axis label.
+        palette: Genotype to colour.
+        populations: Populations to plot, in row order. Defaults to all present.
+        axes: Pre-existing flat list of ``len(populations) * len(metrics)`` axes.
+
+    Returns:
+        Flat list of axes in row-major order.
+    """
+    populations = (
+        list(donor_summary["population"].unique()) if populations is None else list(populations)
+    )
+    genotype_order = list(palette)
+    if axes is None:
+        _, axes = get_figure_axes(
+            len(populations) * len(metrics), num_cols=len(metrics), subplot_size=(4, 4)
+        )
+
+    panels = [(population, metric) for population in populations for metric in metrics]
+    for ax, (population, metric) in zip(axes, panels):
+        panel = donor_summary.loc[
+            (donor_summary["population"] == population) & (donor_summary["metric"] == metric)
+        ]
+        sns.stripplot(
+            data=panel,
+            x="genotype",
+            y="median",
+            hue="genotype",
+            order=genotype_order,
+            hue_order=genotype_order,
+            palette=palette,
+            size=8,
+            jitter=0.1,
+            legend=False,
+            ax=ax,
+        )
+        for position, genotype in enumerate(genotype_order):
+            values = panel.loc[panel["genotype"] == genotype, "median"]
+            if not values.empty:
+                ax.hlines(values.median(), position - 0.3, position + 0.3, color="black")
+        ax.set_title(population)
+        ax.set_xlabel("")
+        ax.set_ylabel(f"donor median\n{metrics[metric]}")
+
+    return list(axes)
+
