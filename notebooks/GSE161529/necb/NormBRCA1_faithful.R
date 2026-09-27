@@ -194,6 +194,9 @@ Anchors <- FindIntegrationAnchors(
 )
 message("IntegrateData...")
 NormB1Total <- IntegrateData(anchorset = Anchors, dims = 1:dimUsed, k.weight = 100)
+## Free per-sample objects + anchors (peak RAM is during CCA; keeps run under ~64 GB)
+rm(list = c("CombSeurat", "Anchors", SamplesComb))
+gc()
 
 DefaultAssay(NormB1Total) <- "integrated"
 NormB1Total <- ScaleData(NormB1Total, verbose = FALSE)
@@ -288,6 +291,8 @@ AnchorsSub <- FindIntegrationAnchors(
   max.features = 100
 )
 NormB1TotalSub <- IntegrateData(anchorset = AnchorsSub, dims = 1:dimUsed, k.weight = 100)
+rm(CombSeuratSub, AnchorsSub)
+gc()
 
 DefaultAssay(NormB1TotalSub) <- "integrated"
 NormB1TotalSub <- ScaleData(NormB1TotalSub, verbose = FALSE)
