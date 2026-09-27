@@ -11,10 +11,13 @@ from signals_in_the_noise.analysis.brca1_cohort import (
     PAPER_QC_PASS_TOTALS,
     Donor,
     Genotype,
+    PaperQcThresholds,
     build_cell_table,
     compare_qc_pass_counts_to_paper,
     compare_qc_pass_totals_to_paper,
+    flag_paper_qc_noise,
     load_or_build_cell_table,
+    paper_qc_thresholds,
 )
 
 # ---------------------------------------------------------------------------
@@ -164,6 +167,61 @@ def test_compare_qc_pass_counts_to_paper_flags_mismatch(cell_table):
     assert result.loc["N-a", "qc_pass_observed"] == 7
     assert bool(result.loc["N-a", "matches"])
     assert not bool(result.loc["B1-b", "matches"])
+
+
+def test_paper_qc_thresholds_reads_annotation_columns():
+    annotations = pd.DataFrame(
+        {
+            "sample-name": ["N-a", "B1-b"],
+            "mito-upper": [0.2, 0.3],
+            "genes-lower": [500, 400],
+            "genes-upper": [6000, 5000],
+            "library-size-upper": [40000, 30000],
+        }
+    )
+    thresholds = paper_qc_thresholds(annotations, TWO_DONORS)
+    assert thresholds["B1-b"] == PaperQcThresholds(0.3, 400, 5000, 30000)
+
+
+QC_RULE = {
+    "N-a": PaperQcThresholds(
+        mito_upper=0.2, genes_lower=500, genes_upper=6000, library_size_upper=40000
+    )
+}
+
+
+@pytest.mark.parametrize(
+    ("total", "genes", "mito_pct", "expected"),
+    [
+        (10000, 2000, 5.0, 0),  # passes
+        (10000, 500, 5.0, 1),  # genes at lower bound fail
+        (10000, 501, 5.0, 0),
+        (10000, 6000, 5.0, 0),  # genes at upper bound pass
+        (10000, 6001, 5.0, 1),
+        (10000, 2000, 20.0, 0),  # mito at bound passes
+        (10000, 2000, 20.1, 1),
+        (40000, 2000, 5.0, 1),  # library size at bound fails
+        (39999, 2000, 5.0, 0),
+    ],
+)
+def test_flag_paper_qc_noise_matches_preprocessor_boundaries(total, genes, mito_pct, expected):
+    cells = pd.DataFrame(
+        {
+            "donor": ["N-a"],
+            "total_counts": [total],
+            "n_genes_by_counts": [genes],
+            "pct_counts_mt": [mito_pct],
+        }
+    )
+    assert flag_paper_qc_noise(cells, QC_RULE).tolist() == [expected]
+
+
+def test_flag_paper_qc_noise_requires_thresholds_for_every_donor():
+    cells = pd.DataFrame(
+        {"donor": ["X"], "total_counts": [1], "n_genes_by_counts": [1], "pct_counts_mt": [1.0]}
+    )
+    with pytest.raises(KeyError, match="X"):
+        flag_paper_qc_noise(cells, QC_RULE)
 
 
 def test_compare_qc_pass_totals_to_paper_reports_both_genotypes(cell_table):

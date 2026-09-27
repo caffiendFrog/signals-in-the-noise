@@ -6,13 +6,15 @@ The cohort is the one analysed in Pal et al. (2021) Fig 4A-C / Appendix S1A-C
 """
 
 import logging
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
 
 import pandas as pd
 from anndata import AnnData
+
+from signals_in_the_noise.utils.cache import load_or_build_frame
 
 logger = logging.getLogger(__name__)
 
@@ -133,15 +135,70 @@ def load_or_build_cell_table(
         donors: Donors defining the categorical order of ``donor``.
         force: Rebuild even when the cache exists.
     """
-    if path.exists() and not force:
-        logger.info("loading cached cell table from %s", path)
-        return _with_cohort_dtypes(pd.read_csv(path), tuple(donors))
+    return _with_cohort_dtypes(load_or_build_frame(path, build, force=force), tuple(donors))
 
-    table = build()
-    path.parent.mkdir(parents=True, exist_ok=True)
-    table.to_csv(path, index=False)
-    logger.info("wrote cell table (%d rows) to %s", len(table), path)
-    return table
+
+@dataclass(frozen=True)
+class PaperQcThresholds:
+    """Per-sample QC thresholds from the paper's supplementary table.
+
+    Attributes:
+        mito_upper: Maximum mitochondrial read fraction (0-1).
+        genes_lower: Cells with at most this many genes fail.
+        genes_upper: Cells with more than this many genes fail.
+        library_size_upper: Cells with at least this many counts fail.
+    """
+
+    mito_upper: float
+    genes_lower: int
+    genes_upper: int
+    library_size_upper: int
+
+
+def paper_qc_thresholds(
+    annotations: pd.DataFrame, donors: Iterable[Donor] = DONORS
+) -> dict[str, PaperQcThresholds]:
+    """Read each donor's QC thresholds from ``GSE161529_annotations_df.csv``."""
+    table = annotations.set_index("sample-name")
+    return {
+        donor.author_id: PaperQcThresholds(
+            mito_upper=float(table.loc[donor.author_id, "mito-upper"]),
+            genes_lower=int(table.loc[donor.author_id, "genes-lower"]),
+            genes_upper=int(table.loc[donor.author_id, "genes-upper"]),
+            library_size_upper=int(table.loc[donor.author_id, "library-size-upper"]),
+        )
+        for donor in donors
+    }
+
+
+def flag_paper_qc_noise(
+    cells: pd.DataFrame, thresholds: Mapping[str, PaperQcThresholds]
+) -> pd.Series:
+    """Return 1 for cells failing the paper QC, 0 otherwise, using each cell's donor thresholds.
+
+    Same rule as ``GSE161529._apply_one``, so on the original counts it
+    reproduces ``is_noise``.
+
+    Args:
+        cells: One row per cell with ``donor`` and :data:`QC_METRIC_COLUMNS`
+            (``pct_counts_mt`` in percent).
+        thresholds: Output of :func:`paper_qc_thresholds`.
+    """
+    donor = cells["donor"].astype(str)
+    missing = sorted(set(donor) - set(thresholds))
+    if missing:
+        raise KeyError(f"No paper QC thresholds for donors {missing}")
+
+    def per_cell(field: str) -> pd.Series:
+        return donor.map({d: getattr(t, field) for d, t in thresholds.items()})
+
+    fails = (
+        (cells["n_genes_by_counts"] <= per_cell("genes_lower"))
+        | (cells["n_genes_by_counts"] > per_cell("genes_upper"))
+        | (cells["pct_counts_mt"] / 100 > per_cell("mito_upper"))
+        | (cells["total_counts"] >= per_cell("library_size_upper"))
+    )
+    return fails.astype(int)
 
 
 def compare_qc_pass_counts_to_paper(

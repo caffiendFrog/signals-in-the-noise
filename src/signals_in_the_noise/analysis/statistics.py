@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from typing import Literal
 
 import numpy as np
+from scipy import stats
 
 logger = logging.getLogger(__name__)
 
@@ -141,3 +142,37 @@ def exact_permutation_test(
     )
     logger.debug("exact permutation test: %s", result)
     return result
+
+
+def bootstrap_mean_difference_ci(
+    group_a: Sequence[float],
+    group_b: Sequence[float],
+    *,
+    confidence: float = 0.95,
+    n_resamples: int = 10_000,
+    seed: int | None = None,
+) -> tuple[float, float]:
+    """Percentile bootstrap CI for ``mean(a) - mean(b)``, resampling donors within each group."""
+    a = np.asarray(group_a, dtype=float)
+    b = np.asarray(group_b, dtype=float)
+    rng = np.random.default_rng(seed)
+    a_means = a[rng.integers(0, a.size, size=(n_resamples, a.size))].mean(axis=1)
+    b_means = b[rng.integers(0, b.size, size=(n_resamples, b.size))].mean(axis=1)
+    tail = (1.0 - confidence) / 2.0
+    low, high = np.quantile(a_means - b_means, [tail, 1.0 - tail])
+    return float(low), float(high)
+
+
+def pooled_t_interval(
+    group_a: Sequence[float], group_b: Sequence[float], *, confidence: float = 0.95
+) -> tuple[float, float]:
+    """Pooled-variance t interval for ``mean(a) - mean(b)``."""
+    a = np.asarray(group_a, dtype=float)
+    b = np.asarray(group_b, dtype=float)
+    df = a.size + b.size - 2
+    pooled_var = ((a.size - 1) * a.var(ddof=1) + (b.size - 1) * b.var(ddof=1)) / df
+    half_width = stats.t.ppf(0.5 + confidence / 2.0, df) * math.sqrt(
+        pooled_var * (1.0 / a.size + 1.0 / b.size)
+    )
+    difference = float(a.mean() - b.mean())
+    return difference - half_width, difference + half_width

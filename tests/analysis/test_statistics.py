@@ -3,9 +3,11 @@
 import pytest
 
 from signals_in_the_noise.analysis.statistics import (
+    bootstrap_mean_difference_ci,
     difference_in_medians,
     exact_permutation_test,
     fdr_to_stars,
+    pooled_t_interval,
 )
 
 
@@ -107,3 +109,33 @@ def test_permutation_rejects_unknown_alternative():
 def test_permutation_refuses_intractable_designs():
     with pytest.raises(ValueError, match="max_permutations"):
         exact_permutation_test(range(10), range(10), max_permutations=100)
+
+
+# ---------------------------------------------------------------------------
+# Confidence intervals for a difference in means
+# ---------------------------------------------------------------------------
+
+
+def test_bootstrap_ci_brackets_observed_difference():
+    low, high = bootstrap_mean_difference_ci(SEPARATED_A, SEPARATED_B, seed=0)
+    assert low < 11.5 - 4.5 < high
+
+
+def test_bootstrap_ci_is_reproducible_with_seed():
+    first = bootstrap_mean_difference_ci(SEPARATED_A, SEPARATED_B, seed=7)
+    assert bootstrap_mean_difference_ci(SEPARATED_A, SEPARATED_B, seed=7) == first
+
+
+def test_bootstrap_ci_collapses_for_constant_groups():
+    assert bootstrap_mean_difference_ci([2.0] * 4, [1.0] * 8, seed=0) == pytest.approx((1.0, 1.0))
+
+
+def test_pooled_t_interval_is_centred_on_difference():
+    low, high = pooled_t_interval(SEPARATED_A, SEPARATED_B)
+    assert (low + high) / 2 == pytest.approx(7.0)
+
+
+def test_pooled_t_interval_matches_textbook_value():
+    # sd_pooled^2 = (3 * 1.667 + 7 * 6.0) / 10 = 4.7; se = sqrt(4.7 * 3 / 8); t(0.975, 10) = 2.228
+    low, high = pooled_t_interval(SEPARATED_A, SEPARATED_B)
+    assert (high - low) / 2 == pytest.approx(2.2281 * (4.7 * 3 / 8) ** 0.5, rel=1e-3)

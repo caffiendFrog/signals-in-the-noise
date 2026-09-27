@@ -11,6 +11,8 @@ from signals_in_the_noise.analysis.noise_phenotypes import (
     _matches_threshold,
     aggregate_noise_subtypes_by_cancer_type,
     classify_noise_subtypes,
+    classify_noise_subtypes_frozen,
+    matches_threshold,
 )
 
 
@@ -442,3 +444,31 @@ def test_aggregate_noise_subtypes_excludes_non_noise_from_subtype_counts():
         assert result[col].between(0, 100).all(), (
             f"column {col!r} has values outside [0, 100] — non-noise cells may be included"
         )
+
+
+# ---------------------------------------------------------------------------
+# Frozen cutoffs
+# ---------------------------------------------------------------------------
+
+
+def test_matches_threshold_uses_reference_quantiles():
+    series = pd.Series([1.0, 2.0, 3.0])
+    reference = pd.Series(np.arange(101, dtype=float))
+    high_tail = Thresholds(q_low=0.5, q_high=None, q_mod_low=None, q_mod_high=None)
+    assert not matches_threshold(series, high_tail, reference=reference).any()
+    assert matches_threshold(series, high_tail).tolist() == [False, True, True]
+
+
+def test_classify_noise_subtypes_frozen_matches_unfrozen_on_reference():
+    adata = _make_adata_with_known_pbs_3()
+    expected = classify_noise_subtypes(adata.copy()).obs[["pbs-1", "pbs-2", "pbs-3"]]
+    frozen = classify_noise_subtypes_frozen(adata.obs, adata.obs)
+    pd.testing.assert_frame_equal(frozen, expected, check_names=False)
+
+
+def test_classify_noise_subtypes_frozen_applies_reference_cutoffs_to_other_cells():
+    adata = _make_adata_with_known_pbs_3()
+    shifted = adata.obs.copy()
+    shifted["log1p_n_genes_by_counts"] += 100.0
+    frozen = classify_noise_subtypes_frozen(shifted, adata.obs)
+    assert not frozen["pbs-1"].any() and not frozen["pbs-2"].any()

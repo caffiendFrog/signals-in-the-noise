@@ -26,5 +26,6 @@ dependencies:
   - r-matrix
   - bioconductor-edger
   - bioconductor-limma
+  - bioconductor-celda
   - libpng
   - zlib
