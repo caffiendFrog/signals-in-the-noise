@@ -31,6 +31,17 @@ NOISE_FLAG_COLUMNS: tuple[str, ...] = (
 )
 """Individual QC flags; a cell is noise when any of them is set."""
 
+EXCLUSIVE_REASON_PRIORITY: tuple[tuple[str, str], ...] = (
+    ("is_high_mito", "high_mito"),
+    ("is_low_num_genes", "low_genes"),
+    ("is_high_num_genes", "high_genes"),
+    ("is_high_total_count", "high_total"),
+)
+"""Order in which a cell that fails several filters is assigned one reason.
+
+The first matching flag wins. The order is fixed before looking at genotype.
+"""
+
 DEFAULT_PERCENT_TOP: tuple[int, ...] = (50, 100, 200, 500)
 """Scanpy's default ``percent_top`` for :func:`scanpy.pp.calculate_qc_metrics`."""
 
@@ -110,6 +121,25 @@ def flag_noise(obs: pd.DataFrame, thresholds: QcThresholds) -> pd.DataFrame:
     )
     flags["is_noise"] = flags.any(axis=1)
     return flags.astype(int)
+
+
+def exclusive_reason(flags: pd.DataFrame) -> pd.Series:
+    """Assign each cell the first reason in :data:`EXCLUSIVE_REASON_PRIORITY`.
+
+    Cells that fail no filter get a missing reason. The non-exclusive flags
+    are unchanged; this column is an additional label for cells that fail
+    more than one.
+
+    Raises:
+        ValueError: If ``flags`` is missing one of the priority columns.
+    """
+    missing = [column for column, _ in EXCLUSIVE_REASON_PRIORITY if column not in flags.columns]
+    if missing:
+        raise ValueError(f"flags is missing columns {missing}.")
+    reason = pd.Series(pd.NA, index=flags.index, dtype="string")
+    for column, label in reversed(EXCLUSIVE_REASON_PRIORITY):
+        reason = reason.mask(flags[column].astype(bool), label)
+    return reason
 
 
 def modal_thresholds(thresholds: Iterable[QcThresholds]) -> QcThresholds:

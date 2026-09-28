@@ -103,6 +103,35 @@ def test_cohort_collects_metadata_and_reports_shared_patients():
     assert set(shared.index) == {"GSM1_N-0064", "GSM2_ER-0064-T"}
 
 
+def _with_menopause(adata: AnnData, status: str | None) -> AnnData:
+    if status is not None:
+        adata.uns["menopause_status"] = status
+    return adata
+
+
+def test_normal_menopause_filter_drops_post_normals_and_keeps_post_brca1():
+    adatas = [
+        _with_menopause(_specimen("GSM_N-PM0092-Total.h5ad", "Normal", "0092"), "Pre"),
+        _with_menopause(_specimen("GSM_N-PM0342-Total.h5ad", "Normal", "0342"), "Post"),
+        _with_menopause(
+            _specimen("GSM_B1-MH0023.h5ad", "BRCA1 pre-neoplastic", "0023"),
+            "Post (oophorectomy)",
+        ),
+        _with_menopause(
+            _specimen("GSM_N-PM0092-Epi.h5ad", "Normal", "0092", cell_population="Epithelial"),
+            "Pre",
+        ),
+    ]
+    cohort = Cohort.from_objects(adatas, ["Normal", "BRCA1 pre-neoplastic"], normal_menopause="Pre")
+    assert list(cohort.specimens) == ["GSM_B1-MH0023", "GSM_N-PM0092-Total"]
+
+
+def test_normal_menopause_filter_rejects_a_normal_with_no_status():
+    adatas = [_specimen("GSM_N-PM0092-Total.h5ad", "Normal", "0092")]
+    with pytest.raises(ValueError, match="menopause"):
+        Cohort.from_objects(adatas, ["Normal"], normal_menopause="Pre")
+
+
 def test_specimen_conditions_and_patients():
     selected = select_specimens([_specimen("a.h5ad", "Normal", patient="0064")], ["Normal"])
     assert specimen_conditions(selected) == {"a": "Normal"}

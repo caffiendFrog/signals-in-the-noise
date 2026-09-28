@@ -81,6 +81,30 @@ def specimen_patients(adatas: Mapping[str, AnnData]) -> dict[str, str]:
     return {specimen_id: patient_id(adata) for specimen_id, adata in adatas.items()}
 
 
+def _is_missing(value: object) -> bool:
+    if value is None:
+        return True
+    try:
+        return bool(pd.isna(value))
+    except (TypeError, ValueError):
+        return False
+
+
+def _menopause_status(adata: AnnData) -> str:
+    """Return ``uns['menopause_status']``, or raise if it is missing."""
+    status = adata.uns.get("menopause_status")
+    if _is_missing(status):
+        raise ValueError(f"Specimen {filename_specimen_id(adata)} has no menopause_status.")
+    return str(status).strip()
+
+
+def _keep_for_normal_menopause(adata: AnnData, normal_menopause: str) -> bool:
+    """Keep every non-Normal specimen; keep a Normal specimen only at this menopause status."""
+    if str(adata.uns.get("cancer_type")) != "Normal":
+        return True
+    return _menopause_status(adata) == normal_menopause
+
+
 @dataclass(frozen=True)
 class Cohort:
     """Specimens selected for a comparison, with their conditions and patients."""
@@ -91,10 +115,31 @@ class Cohort:
 
     @classmethod
     def from_objects(
-        cls, adatas: Iterable[AnnData], conditions: Iterable[str], *, cell_population: str = "Total"
+        cls,
+        adatas: Iterable[AnnData],
+        conditions: Iterable[str],
+        *,
+        cell_population: str = "Total",
+        normal_menopause: str | None = None,
     ) -> "Cohort":
-        """Select specimens with :func:`select_specimens` and record their metadata."""
+        """Select specimens with :func:`select_specimens` and record their metadata.
+
+        Args:
+            adatas: Candidate specimens.
+            conditions: ``uns['cancer_type']`` values to keep.
+            cell_population: ``uns['cell_population']`` value to keep.
+            normal_menopause: If set, a Normal specimen is kept only when its
+                ``menopause_status`` equals this value. Other conditions are
+                not filtered. A Normal specimen with no menopause status raises.
+        """
         specimens = select_specimens(adatas, conditions, cell_population=cell_population)
+        if normal_menopause is not None:
+            specimens = {
+                specimen_id: adata
+                for specimen_id, adata in specimens.items()
+                if _keep_for_normal_menopause(adata, normal_menopause)
+            }
+            specimens = dict(sorted(specimens.items()))
         return cls(specimens, specimen_conditions(specimens), specimen_patients(specimens))
 
     @property

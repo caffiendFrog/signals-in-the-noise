@@ -13,6 +13,7 @@ from signals_in_the_noise.preprocessing.qc import (
     QcThresholds,
     annotate_qc_metrics,
     depth_matched_qc_obs,
+    exclusive_reason,
     flag_noise,
     library_depth,
     mad_thresholds,
@@ -118,6 +119,25 @@ def test_gse161529_apply_one_keeps_pal_comparators():
 # ---------------------------------------------------------------------------
 # modal_thresholds / mad_thresholds / relabel_noise
 # ---------------------------------------------------------------------------
+
+
+def test_exclusive_reason_uses_fixed_priority_and_leaves_clean_cells_missing():
+    flags = pd.DataFrame(
+        {
+            "is_high_mito": [1, 0, 0, 0],
+            "is_low_num_genes": [1, 1, 0, 0],
+            "is_high_num_genes": [0, 0, 1, 0],
+            "is_high_total_count": [1, 0, 0, 0],
+        }
+    )
+    reason = exclusive_reason(flags)
+    assert reason.tolist()[:3] == ["high_mito", "low_genes", "high_genes"]
+    assert pd.isna(reason.iloc[3])
+
+
+def test_exclusive_reason_rejects_a_missing_flag_column():
+    with pytest.raises(ValueError, match="missing"):
+        exclusive_reason(pd.DataFrame({"is_high_mito": [1]}))
 
 
 def test_modal_thresholds_uses_mode_of_each_field():
