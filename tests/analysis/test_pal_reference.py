@@ -14,6 +14,7 @@ from signals_in_the_noise.analysis.pal_reference import (
     map_pal_samples,
     near_threshold_enrichment,
     normalize_barcode,
+    prepare_labels,
     published_p_in_range,
     quasi_poisson_interaction_p,
     reference_passes,
@@ -29,6 +30,37 @@ def test_barcode_keeps_the_10x_suffix_and_drops_a_sample_prefix():
     assert normalize_barcode(_BARCODE.lower()) == _BARCODE
     with pytest.raises(ValueError):
         normalize_barcode("not-a-barcode")
+
+
+def test_orig_ident_n_uses_the_cell_name_prefix():
+    donors = pd.DataFrame(
+        {
+            "specimen_id": [
+                "GSM_N-0019",
+                "GSM_N-MH0023-Total",
+                "GSM_B1-MH0023",
+                "GSM_N-PM0230",
+            ],
+            "donor": ["N-0019", "N-0123", "B1-0023", "N-0230.17"],
+            "genotype": ["WT", "WT", "BRCA1", "WT"],
+        }
+    ).set_index("specimen_id")
+    labels = pd.DataFrame(
+        {
+            "barcode": [
+                "N_0019_total_AAACCTGAGCAAATCA-1",
+                "N_0123_total_AAACCTGAGCAAATCA-1",
+                "B1_0023_AAACCTGAGCAAATCA-1",
+                "N_0230.17_total_AAACCTGAGCAAATCA-1",
+            ],
+            "sample": ["N", "N", "B1", "N"],
+            "cluster": ["0", "0", "1", "0"],
+            "cell_type": ["LP", "basal", "LP", "LP"],
+        }
+    )
+    prepared = prepare_labels(labels, donors)
+    assert list(prepared["donor"]) == ["N-0019", "N-0123", "B1-0023", "N-0230.17"]
+    assert set(prepared["barcode"]) == {"AAACCTGAGCAAATCA-1"}
 
 
 def test_library_names_do_not_cross_the_brca1_and_wt_0023_samples():

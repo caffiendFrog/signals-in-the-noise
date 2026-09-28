@@ -48,11 +48,27 @@ def normalize_barcode(value: str) -> str:
     return f"{match.group(1).upper()}-{match.group(2)}"
 
 
+def cell_sample_name(cell_name: str, sample: str) -> str:
+    """Sample id Pal stored in the cell name.
+
+    ``orig.ident`` is only ``N`` or ``B1``, because Seurat keeps the first
+    underscore-separated token. The cell name is ``N_0019_total_<barcode>``
+    or ``B1_0023_<barcode>``. A bare 10x barcode keeps the sample column.
+    """
+    text = str(cell_name).strip()
+    match = _BARCODE.search(text)
+    if match is None or match.start() == 0:
+        return str(sample)
+    prefix = text[: match.start()].rstrip("_-")
+    return prefix or str(sample)
+
+
 def map_pal_samples(samples, donors: pd.DataFrame) -> pd.Series:
     """Map each Pal sample name to one donor id.
 
-    A name matches a donor id (``N-0093``) or the library token stored in the
-    specimen id (``N-PM0095``). ``B1-MH0023`` and ``N-MH0023`` stay apart.
+    A name matches a donor id (``N-0093`` or ``N_0019_total``) or the library
+    token stored in the specimen id (``N-PM0095``). ``B1-MH0023`` and
+    ``N-MH0023`` stay apart.
     """
     frame = _donor_frame(donors)
     library = {
@@ -311,6 +327,10 @@ def prepare_labels(labels: pd.DataFrame, donors: pd.DataFrame) -> pd.DataFrame:
     if missing:
         raise ValueError(f"Pal export is missing columns {sorted(missing)}.")
     prepared = labels.copy()
+    prepared["sample"] = [
+        cell_sample_name(cell_name, sample)
+        for cell_name, sample in zip(prepared["barcode"], prepared["sample"], strict=True)
+    ]
     prepared["barcode"] = prepared["barcode"].map(normalize_barcode)
     prepared["donor"] = map_pal_samples(prepared["sample"], donors).to_numpy()
     donor_frame = _donor_frame(donors).set_index("donor")

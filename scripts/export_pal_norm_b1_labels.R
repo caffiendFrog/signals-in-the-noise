@@ -22,8 +22,11 @@ meta <- object@meta.data
 if (!"seurat_clusters" %in% colnames(meta)) {
   stop("The object has no seurat_clusters column. Fig 4B clusters are required.")
 }
-if (!"orig.ident" %in% colnames(meta)) {
-  stop("The object has no orig.ident column. Sample names are required.")
+if (!"group" %in% colnames(meta)) {
+  stop(
+    "The object has no group column. Pal stores the sample there; ",
+    "orig.ident is only N or B1."
+  )
 }
 
 cell_type <- NULL
@@ -41,7 +44,7 @@ if (is.null(cell_type)) {
 
 exported <- data.frame(
   barcode = rownames(meta),
-  sample = as.character(meta$orig.ident),
+  sample = as.character(meta$group),
   cluster = as.character(meta$seurat_clusters),
   cell_type = cell_type,
   cell_type_source = cell_type_source,
