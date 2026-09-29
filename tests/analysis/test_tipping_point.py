@@ -192,7 +192,7 @@ def _twelve_donor_cohort():
             "n_lp": [20 if genotype[donor] == "BRCA1" else 40 for donor in donors],
             "lp_share": [0.2 if genotype[donor] == "BRCA1" else 0.4 for donor in donors],
         },
-        index=donors,
+        index=pd.Index(donors, name="donor"),
     )
     donor_table = pd.DataFrame(
         {

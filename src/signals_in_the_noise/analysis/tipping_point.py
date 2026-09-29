@@ -349,8 +349,8 @@ def _test_spec(spec: dict) -> tuple[str, str, float]:
 
 
 def _analysis_frame(cells, donors, labels, shares, *, drop_doublet_only: bool) -> pd.DataFrame:
-    frame = shares.copy()
-    frame["donor"] = frame.index.astype(str)
+    frame = _shares_with_donor_column(shares)
+    frame["donor"] = frame["donor"].astype(str)
     counted = labels.assign(donor=labels["donor"].astype(str))
     n_lp = counted.groupby("donor")["predicted_type"].apply(lambda s: int((s == LP_TYPE).sum()))
     n_labeled = counted.groupby("donor").size()
@@ -470,6 +470,16 @@ def _k_grid(k_cap: float, k_star: float | None) -> np.ndarray:
         extra.append(k_star)
     values = np.unique(np.concatenate([grid, extra]))
     return values[values <= k_cap + 1e-12]
+
+
+def _shares_with_donor_column(shares: pd.DataFrame) -> pd.DataFrame:
+    """Donor id as a column. The lineage table uses that id as the index name too."""
+    frame = shares.copy()
+    if "donor" not in frame.columns:
+        return frame.rename_axis("donor").reset_index()
+    if frame.index.name == "donor":
+        return frame.rename_axis(None)
+    return frame
 
 
 def _with_donor_column(donors: pd.DataFrame) -> pd.DataFrame:
