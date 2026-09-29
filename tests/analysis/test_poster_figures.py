@@ -5,6 +5,7 @@ from pathlib import Path
 import pandas as pd
 
 from signals_in_the_noise.analysis.poster_figures import (
+    _auc_zero_index,
     depth_collapse_figure,
     lp_expansion_figure,
     plot_depth_collapse,
@@ -97,7 +98,7 @@ def test_auc_zero_sits_on_its_marker():
     axis = figure.axes[0]
     for ann in axis.texts:
         text = ann.get_text()
-        index = text.index("0")
+        index = _auc_zero_index(text, on_left=ann.xy[0] == 0)
         prop = ann.get_fontproperties()
         prefix = text[:index]
         prefix_width = (

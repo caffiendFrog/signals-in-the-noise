@@ -172,7 +172,7 @@ def _auc_slopes(ax, scores: pd.DataFrame) -> list:
 
 
 def _auc_label(ax, xy: tuple[float, float], text: str, color: str, vertical: tuple[float, str]):
-    """Left-aligned label. A later pass centers its first 0 on the marker."""
+    """Left-aligned label. A later pass centers one 0 on the marker."""
     dy, va = vertical
     return ax.annotate(
         text,
@@ -186,8 +186,13 @@ def _auc_label(ax, xy: tuple[float, float], text: str, color: str, vertical: tup
     )
 
 
+def _auc_zero_index(text: str, *, on_left: bool) -> int:
+    """Left labels use the final 0 in the AUC. Right labels use the first."""
+    return text.rfind("0") if on_left else text.index("0")
+
+
 def _center_auc_zero(annotations: list) -> None:
-    """Move each label so the 0 in its AUC sits on the marker."""
+    """Move each label so one 0 in its AUC sits on the marker."""
     if not annotations:
         return
     figure = annotations[0].axes.figure
@@ -196,7 +201,7 @@ def _center_auc_zero(annotations: list) -> None:
     pixels_per_point = figure.dpi / 72
     for ann in annotations:
         text = ann.get_text()
-        index = text.index("0")
+        index = _auc_zero_index(text, on_left=ann.xy[0] == 0)
         prop = ann.get_fontproperties()
         prefix = text[:index]
         prefix_width = (
