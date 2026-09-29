@@ -42,15 +42,22 @@ def plot_depth_collapse(summary: pd.DataFrame, depths: pd.DataFrame, path: Path)
 
 
 def depth_collapse_figure(summary: pd.DataFrame, depths: pd.DataFrame):
-    """The depth figure, before it is written to disk."""
+    """The depth figure, before it is written to disk.
+
+    Re-plot: the PBS slope is the claim. Draw it last, heavier than the
+    kept-cell line, and print the specimen AUC at each end. Those two numbers
+    are what the title is asserting. The cohort is ER+ tumour versus Normal.
+    """
     scores = _noise_and_qc(summary)
     included = depths.loc[_as_bool(depths["included"])].copy()
-    fig = _figure(figsize=(10.2, 4.4))
+    before, after = _pbs_auc(scores)
+    fig = _figure(figsize=(10.2, 4.6))
     axes = fig.subplots(1, 2)
     _auc_slopes(axes[0], scores)
     _depth_strip(axes[1], included)
     fig.suptitle(
-        "Equalizing depth removes the ER+ signal in discarded cells",
+        "Equalizing depth removes the ER+ signal in discarded cells\n"
+        f"PBS specimen AUC {before:.2f} before matching, {after:.2f} after",
         color=MI_FONT_COLOR,
         fontsize=15,
         x=0.02,
@@ -83,7 +90,8 @@ def lp_expansion_figure(curve, shares, alpha: float, signature_c: float, extreme
     _tipping_curve(axes[0], curve, alpha=alpha, signature_c=signature_c, extreme_p=extreme_p)
     _lp_strip(axes[1], shares)
     fig.suptitle(
-        "Removed cells cannot create a BRCA1 LP expansion",
+        "Removed cells cannot create a BRCA1 LP expansion\n"
+        "12 donors, including the two post-oophorectomy BRCA1 samples",
         color=MI_FONT_COLOR,
         fontsize=15,
         x=0.02,
@@ -110,41 +118,75 @@ def _noise_and_qc(summary: pd.DataFrame) -> pd.DataFrame:
     return chosen
 
 
+def _pbs_auc(scores: pd.DataFrame) -> tuple[float, float]:
+    rows = scores.loc[scores["arm"] == "noise_pbs"].set_index("version")
+    return (
+        float(rows.loc["original", "specimen_auc"]),
+        float(rows.loc["depth-matched", "specimen_auc"]),
+    )
+
+
 def _auc_slopes(ax, scores: pd.DataFrame) -> None:
     order = ["original", "depth-matched"]
-    colors = {"noise_pbs": MI_BLUE, "retained_qc": MI_SKY}
+    # Kept cells first, then PBS on top. PBS carries the AUC labels.
+    series = (
+        ("retained_qc", MI_SKY, 1.6, 6, 2),
+        ("noise_pbs", MI_VERMILLION, 3.2, 9, 4),
+    )
     labels = {"noise_pbs": "Discarded cells, PBS", "retained_qc": "Kept cells, raw QC"}
-    for arm, color in colors.items():
+    for arm, color, width, marker, zorder in series:
         rows = scores.loc[scores["arm"] == arm].set_index("version")
         if not set(order).issubset(rows.index):
             continue
         values = [float(rows.loc[version, "specimen_auc"]) for version in order]
-        ax.plot([0, 1], values, color=color, linewidth=2.4, marker="o", markersize=8, zorder=3)
-        ax.annotate(
-            f"p = {float(rows.loc['original', 'permutation_p']):.2f}",
-            (0, values[0]),
-            textcoords="offset points",
-            xytext=(8, 6),
+        ax.plot(
+            [0, 1],
+            values,
             color=color,
-            fontsize=11,
+            linewidth=width,
+            marker="o",
+            markersize=marker,
+            zorder=zorder,
         )
-        ax.annotate(
-            f"p = {float(rows.loc['depth-matched', 'permutation_p']):.2f}",
-            (1, values[1]),
-            textcoords="offset points",
-            xytext=(-8, 6),
-            ha="right",
-            color=color,
-            fontsize=11,
-        )
+        if arm != "noise_pbs":
+            continue
+        for x, version, value, align, shift in (
+            (0, "original", values[0], "left", 8),
+            (1, "depth-matched", values[1], "right", -8),
+        ):
+            ax.annotate(
+                f"AUC {value:.2f}",
+                (x, value),
+                textcoords="offset points",
+                xytext=(shift, 8),
+                ha=align,
+                color=color,
+                fontsize=12,
+            )
+            ax.annotate(
+                f"p = {float(rows.loc[version, 'permutation_p']):.2f}",
+                (x, value),
+                textcoords="offset points",
+                xytext=(shift, -14),
+                ha=align,
+                color=color,
+                fontsize=10,
+            )
     ax.axhline(0.5, color=MI_FONT_COLOR, linestyle="--", linewidth=0.9, alpha=0.7, zorder=1)
     ax.set_xticks([0, 1], ["Original depth", "Depth-matched"])
-    ax.set_ylabel("Specimen AUC")
-    ax.set_ylim(0.35, 1.02)
+    ax.set_ylabel("Specimen AUC, ER+ vs Normal")
+    ax.set_ylim(0.0, 1.05)
     ax.legend(
         handles=[
-            Line2D([0], [0], color=colors["noise_pbs"], marker="o", label=labels["noise_pbs"]),
-            Line2D([0], [0], color=colors["retained_qc"], marker="o", label=labels["retained_qc"]),
+            Line2D(
+                [0],
+                [0],
+                color=MI_VERMILLION,
+                marker="o",
+                linewidth=3.2,
+                label=labels["noise_pbs"],
+            ),
+            Line2D([0], [0], color=MI_SKY, marker="o", linewidth=1.6, label=labels["retained_qc"]),
         ],
         frameon=False,
         loc="lower left",
@@ -180,15 +222,18 @@ def _tipping_curve(ax, curve, *, alpha, signature_c, extreme_p) -> None:
     ax.axhline(alpha, color=MI_VERMILLION, linestyle="--", linewidth=1.0)
     ax.axvline(signature_c, color=MI_ORANGE, linestyle=":", linewidth=1.2)
     cap = ordered.iloc[-1]
-    ax.scatter([cap["k"]], [cap["p_value"]], s=42, color=MI_VERMILLION, zorder=4)
+    cap_p = float(cap["p_value"])
+    ax.scatter([cap["k"]], [cap_p], s=42, color=MI_VERMILLION, zorder=4)
     ax.annotate(
-        "All removed BRCA1\ncells are LP",
-        (cap["k"], cap["p_value"]),
+        "Cap: all removed BRCA1 cells are LP\n"
+        "WT removed cells keep their retained share\n"
+        f"p = {cap_p:.3f}",
+        (cap["k"], cap_p),
         textcoords="offset points",
         xytext=(-8, 12),
         ha="right",
         color=MI_VERMILLION,
-        fontsize=11,
+        fontsize=10,
     )
     y_top = 0.97
     ax.text(
@@ -211,7 +256,7 @@ def _tipping_curve(ax, curve, *, alpha, signature_c, extreme_p) -> None:
     ax.text(
         0.98,
         0.08,
-        f"No LP in WT removed cells: p = {extreme_p:.2f}",
+        f"Separate bound, no LP in removed WT cells: p = {extreme_p:.3f}",
         transform=ax.transAxes,
         ha="right",
         color=MI_FONT_COLOR,

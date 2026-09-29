@@ -33,9 +33,15 @@ def test_depth_figure_draws_the_pbs_drop_and_requires_both_versions(tmp_path):
     assert path.is_file()
     assert path.with_suffix(".pdf").is_file()
     figure = depth_collapse_figure(summary, depths)
-    line = figure.axes[0].lines[0]
-    assert list(line.get_xdata()) == [0, 1]
-    assert list(line.get_ydata()) == [0.82, 0.51]
+    pbs = [line for line in figure.axes[0].lines if line.get_color() == "#D55E00"]
+    assert len(pbs) == 1
+    assert list(pbs[0].get_xdata()) == [0, 1]
+    assert list(pbs[0].get_ydata()) == [0.82, 0.51]
+    assert pbs[0].get_linewidth() > 2.5
+    title = figure._suptitle.get_text()
+    assert "0.82" in title
+    assert "0.51" in title
+    assert figure.axes[0].get_ylim()[0] == 0.0
 
     summary.loc[summary["version"] == "depth-matched", "version"] = "thinned"
     try:
