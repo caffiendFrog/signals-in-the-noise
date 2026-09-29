@@ -139,7 +139,7 @@ def _auc_slopes(ax, scores: pd.DataFrame) -> list:
             solid_capstyle="round",
         )
         if arm == "retained_qc":
-            vertical = (0, "center")
+            vertical = (8, "bottom")
         else:
             vertical = (6, "bottom")
         annotations.append(
