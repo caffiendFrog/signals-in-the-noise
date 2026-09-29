@@ -60,17 +60,24 @@ def value_matches_threshold(
     return all(conditions)
 
 
-def matches_threshold(series: pd.Series, thresholds: Thresholds) -> pd.Series:
-    """Return a boolean mask for cells matching the given quantile thresholds."""
+def matches_threshold(
+    series: pd.Series, thresholds: Thresholds, *, reference: pd.Series | None = None
+) -> pd.Series:
+    """Return a boolean mask for cells matching the given quantile thresholds.
+
+    Quantile cutoffs are computed on ``reference`` when given, otherwise on
+    ``series`` itself.
+    """
+    reference = series if reference is None else reference
     conditions: list[pd.Series] = []
 
     if thresholds.q_low is not None:
-        conditions.append(series >= series.quantile(thresholds.q_low))
+        conditions.append(series >= reference.quantile(thresholds.q_low))
     if thresholds.q_high is not None:
-        conditions.append(series <= series.quantile(thresholds.q_high))
+        conditions.append(series <= reference.quantile(thresholds.q_high))
     if thresholds.q_mod_low is not None and thresholds.q_mod_high is not None:
-        low_val = series.quantile(thresholds.q_mod_low)
-        high_val = series.quantile(thresholds.q_mod_high)
+        low_val = reference.quantile(thresholds.q_mod_low)
+        high_val = reference.quantile(thresholds.q_mod_high)
         conditions.append((series > low_val) & (series < high_val))
 
     if not conditions:
@@ -110,6 +117,43 @@ DEFAULT_PBS_THRESHOLDS: dict[str, PbsThresholds] = {
     ),
 }
 """Default per-PBS, per-metric quantile thresholds for noise subtype classification."""
+
+PBS_METRICS: tuple[str, ...] = ("pct_counts_mt", "log1p_total_counts", "log1p_n_genes_by_counts")
+"""``obs`` columns the PBS thresholds are defined on, in :class:`PbsThresholds` field order."""
+
+
+def classify_noise_subtypes_frozen(
+    cells: pd.DataFrame,
+    reference: pd.DataFrame,
+    *,
+    pbs_thresholds: dict[str, PbsThresholds] | None = None,
+) -> pd.DataFrame:
+    """Classify cells into PBS subtypes with quantile cutoffs frozen on a reference population.
+
+    Unlike :func:`classify_noise_subtypes`, cutoffs are computed once on
+    ``reference`` (e.g. pooled WT noise cells) and applied unchanged to
+    ``cells``, so every donor is classified on the same scale.
+
+    Args:
+        cells: Cells to classify, with the :data:`PBS_METRICS` columns.
+        reference: Population the quantile cutoffs are computed on, with the
+            same columns.
+        pbs_thresholds: Mapping from PBS label to :class:`PbsThresholds`.
+            Defaults to :data:`DEFAULT_PBS_THRESHOLDS`.
+
+    Returns:
+        Boolean frame indexed like ``cells`` with one column per PBS label.
+    """
+    thresholds = DEFAULT_PBS_THRESHOLDS if pbs_thresholds is None else pbs_thresholds
+    labels = {}
+    for label, pbs in thresholds.items():
+        mask = pd.Series(True, index=cells.index)
+        for metric in PBS_METRICS:
+            mask &= matches_threshold(
+                cells[metric], getattr(pbs, metric), reference=reference[metric]
+            )
+        labels[label] = mask
+    return pd.DataFrame(labels, index=cells.index)
 
 
 def classify_noise_subtypes(
