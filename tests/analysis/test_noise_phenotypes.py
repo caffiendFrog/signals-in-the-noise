@@ -6,11 +6,15 @@ import pytest
 from anndata import AnnData
 
 from signals_in_the_noise.analysis.noise_phenotypes import (
-    PbsThresholds,
+    ISCB_SCS_PBS_THRESHOLDS,
+    NO_PBS_LABEL,
+    PBS_LABELS,
     Thresholds,
     _matches_threshold,
     aggregate_noise_subtypes_by_cancer_type,
     classify_noise_subtypes,
+    pbs_label,
+    pbs_masks,
 )
 
 
@@ -193,31 +197,39 @@ def test_matches_threshold_ignores_partial_moderate_bounds(metric_series):
     assert _matches_threshold(metric_series, thresholds_high_only).all()
 
 
-def _iscb_scs_pbs_thresholds() -> dict[str, PbsThresholds]:
-    """ISCB SCS notebook thresholds expressed with current field semantics."""
-    return {
-        "pbs-1": PbsThresholds(
-            pct_counts_mt=Thresholds(q_low=0.85, q_high=None, q_mod_low=None, q_mod_high=None),
-            log1p_total_counts=Thresholds(q_low=None, q_high=0.3, q_mod_low=None, q_mod_high=None),
-            log1p_n_genes_by_counts=Thresholds(
-                q_low=None, q_high=0.3, q_mod_low=None, q_mod_high=None
-            ),
-        ),
-        "pbs-2": PbsThresholds(
-            pct_counts_mt=Thresholds(q_low=None, q_high=0.25, q_mod_low=None, q_mod_high=None),
-            log1p_total_counts=Thresholds(q_low=None, q_high=0.3, q_mod_low=None, q_mod_high=None),
-            log1p_n_genes_by_counts=Thresholds(
-                q_low=None, q_high=None, q_mod_low=0.45, q_mod_high=0.85
-            ),
-        ),
-        "pbs-3": PbsThresholds(
-            pct_counts_mt=Thresholds(q_low=None, q_high=None, q_mod_low=0.3, q_mod_high=0.65),
-            log1p_total_counts=Thresholds(q_low=None, q_high=None, q_mod_low=0.5, q_mod_high=0.85),
-            log1p_n_genes_by_counts=Thresholds(
-                q_low=0.95, q_high=None, q_mod_low=None, q_mod_high=None
-            ),
-        ),
-    }
+def test_iscb_scs_thresholds_match_notebook_10a_values():
+    """The constant must keep the thresholds used by ``iscb-scs/10-a``."""
+    t = ISCB_SCS_PBS_THRESHOLDS
+    assert t["pbs-1"].pct_counts_mt == Thresholds(0.85, None, None, None)
+    assert t["pbs-1"].log1p_total_counts == Thresholds(None, 0.3, None, None)
+    assert t["pbs-2"].pct_counts_mt == Thresholds(None, 0.25, None, None)
+    assert t["pbs-2"].log1p_n_genes_by_counts == Thresholds(None, None, 0.45, 0.85)
+    assert t["pbs-3"].pct_counts_mt == Thresholds(None, None, 0.3, 0.65)
+    assert t["pbs-3"].log1p_total_counts == Thresholds(None, None, 0.5, 0.85)
+    assert t["pbs-3"].log1p_n_genes_by_counts == Thresholds(0.95, None, None, None)
+
+
+def test_pbs_masks_match_classify_noise_subtypes():
+    adata = _make_adata(n=200)
+    masks = pbs_masks(adata.obs, ISCB_SCS_PBS_THRESHOLDS)
+    classify_noise_subtypes(adata, pbs_thresholds=ISCB_SCS_PBS_THRESHOLDS)
+    assert list(masks.columns) == list(PBS_LABELS)
+    pd.testing.assert_frame_equal(masks, adata.obs[list(PBS_LABELS)])
+
+
+def test_pbs_label_uses_first_matching_subtype_and_none_default():
+    masks = pd.DataFrame(
+        {
+            "pbs-1": [True, False, False, False],
+            "pbs-2": [True, True, False, False],
+            "pbs-3": [False, True, True, False],
+        },
+        index=list("abcd"),
+    )
+    labels = pbs_label(masks)
+    assert labels.tolist() == ["pbs-1", "pbs-2", "pbs-3", NO_PBS_LABEL]
+    assert labels.name == "pbs"
+    assert labels.index.equals(masks.index)
 
 
 def test_classify_noise_subtypes_iscb_thresholds_are_selective():
@@ -233,7 +245,7 @@ def test_classify_noise_subtypes_iscb_thresholds_are_selective():
             }
         )
     )
-    classify_noise_subtypes(adata, pbs_thresholds=_iscb_scs_pbs_thresholds())
+    classify_noise_subtypes(adata, pbs_thresholds=ISCB_SCS_PBS_THRESHOLDS)
     counts = adata.obs[["pbs-1", "pbs-2", "pbs-3"]].sum()
     assert counts["pbs-1"] == 23
     assert counts["pbs-2"] == 33

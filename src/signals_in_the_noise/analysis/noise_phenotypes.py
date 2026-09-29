@@ -2,10 +2,17 @@ import logging
 from collections import defaultdict
 from dataclasses import dataclass
 
+import numpy as np
 import pandas as pd
 from anndata import AnnData
 
 logger = logging.getLogger(__name__)
+
+PBS_LABELS: tuple[str, ...] = ("pbs-1", "pbs-2", "pbs-3")
+"""PBS subtype labels, in the order used for feature columns and label precedence."""
+
+NO_PBS_LABEL = "none"
+"""Label assigned to cells that match none of the PBS subtypes."""
 
 
 @dataclass(frozen=True)
@@ -111,6 +118,68 @@ DEFAULT_PBS_THRESHOLDS: dict[str, PbsThresholds] = {
 }
 """Default per-PBS, per-metric quantile thresholds for noise subtype classification."""
 
+ISCB_SCS_PBS_THRESHOLDS: dict[str, PbsThresholds] = {
+    "pbs-1": PbsThresholds(
+        pct_counts_mt=Thresholds(q_low=0.85, q_high=None, q_mod_low=None, q_mod_high=None),
+        log1p_total_counts=Thresholds(q_low=None, q_high=0.3, q_mod_low=None, q_mod_high=None),
+        log1p_n_genes_by_counts=Thresholds(q_low=None, q_high=0.3, q_mod_low=None, q_mod_high=None),
+    ),
+    "pbs-2": PbsThresholds(
+        pct_counts_mt=Thresholds(q_low=None, q_high=0.25, q_mod_low=None, q_mod_high=None),
+        log1p_total_counts=Thresholds(q_low=None, q_high=0.3, q_mod_low=None, q_mod_high=None),
+        log1p_n_genes_by_counts=Thresholds(
+            q_low=None, q_high=None, q_mod_low=0.45, q_mod_high=0.85
+        ),
+    ),
+    "pbs-3": PbsThresholds(
+        pct_counts_mt=Thresholds(q_low=None, q_high=None, q_mod_low=0.3, q_mod_high=0.65),
+        log1p_total_counts=Thresholds(q_low=None, q_high=None, q_mod_low=0.5, q_mod_high=0.85),
+        log1p_n_genes_by_counts=Thresholds(q_low=0.95, q_high=None, q_mod_low=None, q_mod_high=None),
+    ),
+}
+"""Thresholds used by the ISCB SCS ER+ vs Normal classifier (``iscb-scs/10-a``)."""
+
+
+def pbs_masks(
+    obs: pd.DataFrame, pbs_thresholds: dict[str, PbsThresholds] | None = None
+) -> pd.DataFrame:
+    """Return one boolean column per PBS subtype for the cells in ``obs``.
+
+    Quantile cutoffs are derived from ``obs`` itself, so callers control the
+    reference population by choosing which rows to pass in.
+
+    Args:
+        obs: Cell-level frame with ``pct_counts_mt``, ``log1p_total_counts``
+            and ``log1p_n_genes_by_counts`` columns.
+        pbs_thresholds: Mapping from PBS label to :class:`PbsThresholds`.
+            Defaults to :data:`DEFAULT_PBS_THRESHOLDS`.
+
+    Returns:
+        DataFrame indexed like ``obs`` with columns :data:`PBS_LABELS`.
+    """
+    thresholds = DEFAULT_PBS_THRESHOLDS if pbs_thresholds is None else pbs_thresholds
+    masks = {}
+    for label in PBS_LABELS:
+        t = thresholds[label]
+        masks[label] = (
+            _matches_threshold(obs["pct_counts_mt"], t.pct_counts_mt)
+            & _matches_threshold(obs["log1p_total_counts"], t.log1p_total_counts)
+            & _matches_threshold(obs["log1p_n_genes_by_counts"], t.log1p_n_genes_by_counts)
+        ).astype(bool)
+    return pd.DataFrame(masks, index=obs.index)
+
+
+def pbs_label(masks: pd.DataFrame) -> pd.Series:
+    """Collapse PBS boolean columns into a single label per cell.
+
+    When a cell matches several subtypes, the first in :data:`PBS_LABELS`
+    wins. Cells matching none are labelled :data:`NO_PBS_LABEL`.
+    """
+    labels = np.select(
+        [masks[label].to_numpy() for label in PBS_LABELS], list(PBS_LABELS), default=NO_PBS_LABEL
+    )
+    return pd.Series(labels, index=masks.index, name="pbs")
+
 
 def classify_noise_subtypes(
     adata: AnnData, *,
@@ -146,35 +215,9 @@ def classify_noise_subtypes(
         The same ``adata`` object with ``pbs-1``, ``pbs-2``, and ``pbs-3``
         boolean columns added to ``adata.obs``.
     """
-    obs = adata.obs
-
-    thresholds = DEFAULT_PBS_THRESHOLDS if pbs_thresholds is None else pbs_thresholds
-
-    t1 = thresholds["pbs-1"]
-    t2 = thresholds["pbs-2"]
-    t3 = thresholds["pbs-3"]
-
-    mito = obs["pct_counts_mt"]
-    rna = obs["log1p_total_counts"]
-    genes = obs["log1p_n_genes_by_counts"]
-
-    adata.obs["pbs-1"] = (
-        _matches_threshold(mito, t1.pct_counts_mt)
-        & _matches_threshold(rna, t1.log1p_total_counts)
-        & _matches_threshold(genes, t1.log1p_n_genes_by_counts)
-    ).astype(bool)
-
-    adata.obs["pbs-2"] = (
-        _matches_threshold(mito, t2.pct_counts_mt)
-        & _matches_threshold(rna, t2.log1p_total_counts)
-        & _matches_threshold(genes, t2.log1p_n_genes_by_counts)
-    ).astype(bool)
-
-    adata.obs["pbs-3"] = (
-        _matches_threshold(mito, t3.pct_counts_mt)
-        & _matches_threshold(rna, t3.log1p_total_counts)
-        & _matches_threshold(genes, t3.log1p_n_genes_by_counts)
-    ).astype(bool)
+    masks = pbs_masks(adata.obs, pbs_thresholds)
+    for label in PBS_LABELS:
+        adata.obs[label] = masks[label]
 
     logger.debug(
         "classified %d noise cells: %d pbs-1, %d pbs-2, %d pbs-3",

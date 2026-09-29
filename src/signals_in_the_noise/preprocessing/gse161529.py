@@ -14,6 +14,7 @@ from slugify import slugify
 from signals_in_the_noise.config import get_data_path, get_resources_path
 from signals_in_the_noise.io.tenx import TenX
 from signals_in_the_noise.preprocessing.base import Preprocessor
+from signals_in_the_noise.preprocessing.qc import QcThresholds, annotate_qc_metrics, flag_noise
 from signals_in_the_noise.utils.log import get_logger
 
 logger = get_logger(__name__)
@@ -221,28 +222,10 @@ class GSE161529(Preprocessor):
             ValueError: If the non-noise cell count does not match the published expected count
                 (for samples not in ``EXPECTED_MISMATCHES``).
         """
-        adata.var["mt"] = adata.var_names.str.upper().str.startswith("MT-")
-        sc.pp.calculate_qc_metrics(adata, qc_vars=["mt"], inplace=True)
-
-        adata.obs["is_low_num_genes"] = (
-            adata.obs["n_genes_by_counts"] <= adata.uns["qc_genes_lower"]
-        ).astype(int)
-        adata.obs["is_high_num_genes"] = (
-            adata.obs["n_genes_by_counts"] > adata.uns["qc_genes_upper"]
-        ).astype(int)
-        adata.obs["is_high_mito"] = (
-            adata.obs["pct_counts_mt"] / 100 > adata.uns["qc_mito_upper"]
-        ).astype(int)
-        adata.obs["is_high_total_count"] = (
-            adata.obs["total_counts"] >= adata.uns["qc_total_upper"]
-        ).astype(int)
-
-        adata.obs["is_noise"] = (
-            adata.obs["is_low_num_genes"]
-            | adata.obs["is_high_num_genes"]
-            | adata.obs["is_high_mito"]
-            | adata.obs["is_high_total_count"]
-        ).astype(int)
+        annotate_qc_metrics(adata)
+        flags = flag_noise(adata.obs, QcThresholds.from_uns(adata.uns))
+        for column in flags.columns:
+            adata.obs[column] = flags[column]
 
         actual_count = adata[adata.obs["is_noise"] == 0, :].shape[0]
         expected_count = adata.uns["num_cells_after"]

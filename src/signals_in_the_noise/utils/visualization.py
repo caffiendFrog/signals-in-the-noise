@@ -13,6 +13,7 @@ from anndata import AnnData
 
 from signals_in_the_noise.analysis.noise_phenotypes import Thresholds, matches_threshold, value_matches_threshold
 from signals_in_the_noise.analysis.statistics import fdr_to_stars
+from signals_in_the_noise.preprocessing.qc import select_population
 
 logger = logging.getLogger(__name__)
 
@@ -393,6 +394,143 @@ def plot_gene_signature_score_distribution(
     ax.legend()
 
     return ax
+
+
+def plot_covariates_by_condition(
+    table: pd.DataFrame,
+    columns: list[str],
+    condition_column: str = "condition",
+    num_cols: int = 4,
+    subplot_size: tuple[int, int] = (4, 3.5),
+    association: pd.DataFrame | None = None,
+) -> np.ndarray:
+    """Box-and-strip plot of specimen-level covariates, one panel per covariate.
+
+    Args:
+        table: One row per specimen.
+        columns: Covariate columns to plot.
+        condition_column: Grouping column on the x-axis.
+        num_cols: Panels per row.
+        subplot_size: ``(width, height)`` of each panel in inches.
+        association: Optional output of
+            :func:`~signals_in_the_noise.analysis.confounders.association_table`;
+            when given, each title shows the AUC and q-value.
+
+    Returns:
+        Flat array of axes.
+    """
+    _, axes = get_figure_axes(len(columns), num_cols=num_cols, subplot_size=subplot_size)
+    for ax, column in zip(axes, columns):
+        sns.boxplot(data=table, x=condition_column, y=column, ax=ax, color="white", fliersize=0)
+        sns.stripplot(
+            data=table, x=condition_column, y=column, ax=ax, hue=condition_column, legend=False
+        )
+        title = column
+        if association is not None and column in association.index:
+            row = association.loc[column]
+            title += f"\nAUC={row['auc']:.2f}, q={row['q_value']:.3f}"
+        ax.set_title(title, fontsize=9)
+        ax.set_xlabel("")
+        ax.set_ylabel("")
+    plt.tight_layout()
+    return axes
+
+
+def plot_specimen_qc_distributions(
+    specimen_obs: dict[str, pd.DataFrame],
+    conditions: dict[str, str],
+    metrics: list[str],
+    population: str = "all",
+    noise_column: str = "is_noise",
+    subplot_size: tuple[int, int] = (16, 3.5),
+) -> np.ndarray:
+    """Per-specimen box plots of QC metrics, specimens ordered by condition.
+
+    Args:
+        specimen_obs: Specimen identifier to cell-level QC frame.
+        conditions: Specimen identifier to condition (used for colour and order).
+        metrics: QC columns to plot, one panel each.
+        population: ``"all"``, ``"retained"`` or ``"noise"`` cells.
+        noise_column: Column defining the population.
+        subplot_size: ``(width, height)`` of each panel in inches.
+
+    Returns:
+        Flat array of axes.
+    """
+    order = sorted(specimen_obs, key=lambda sid: (conditions[sid], sid))
+    long = pd.concat(
+        [
+            select_population(specimen_obs[sid], population, noise_column)[metrics].assign(
+                specimen=sid, condition=conditions[sid]
+            )
+            for sid in order
+        ],
+        ignore_index=True,
+    )
+    _, axes = get_figure_axes(len(metrics), num_cols=1, subplot_size=subplot_size, share_x=True)
+    for ax, metric in zip(axes, metrics):
+        sns.boxplot(
+            data=long, x="specimen", y=metric, hue="condition", order=order,
+            dodge=False, fliersize=0, ax=ax,
+        )
+        ax.set_xlabel("")
+        ax.set_title(f"{metric} ({population} cells)", fontsize=10)
+    axes[-1].tick_params(axis="x", rotation=90)
+    plt.tight_layout()
+    return axes
+
+
+def plot_arm_draws(
+    draw_metrics: pd.DataFrame,
+    metric: str = "cell_accuracy",
+    order: list[str] | None = None,
+    chance: float = 0.5,
+    ax: matplotlib.axes.Axes | None = None,
+) -> matplotlib.axes.Axes:
+    """Distribution over balanced draws of one metric for each arm.
+
+    Args:
+        draw_metrics: Long table with an ``arm`` column and ``metric``.
+        metric: Metric column to plot.
+        order: Arm display order (top to bottom).
+        chance: Value marked with a dashed reference line.
+        ax: Existing axes; a new figure is created when ``None``.
+    """
+    if ax is None:
+        _, ax = plt.subplots(figsize=(8, 0.6 * draw_metrics["arm"].nunique() + 1.5))
+    sns.boxplot(data=draw_metrics, y="arm", x=metric, order=order, ax=ax, color="#9ecae1")
+    ax.axvline(chance, color="grey", linestyle="--", linewidth=1)
+    ax.set_ylabel("")
+    ax.set_title(f"{metric} across balanced specimen draws")
+    return ax
+
+
+def plot_permutation_nulls(
+    permutations: dict,
+    num_cols: int = 4,
+    subplot_size: tuple[int, int] = (4, 3),
+) -> np.ndarray:
+    """Histogram of each arm's permutation null with the observed value marked.
+
+    Args:
+        permutations: Arm name to
+            :class:`~signals_in_the_noise.modeling.evaluation.PermutationResult`.
+        num_cols: Panels per row.
+        subplot_size: ``(width, height)`` of each panel in inches.
+
+    Returns:
+        Flat array of axes.
+    """
+    _, axes = get_figure_axes(
+        len(permutations), num_cols=num_cols, subplot_size=subplot_size, share_x=True
+    )
+    for ax, (name, result) in zip(axes, permutations.items()):
+        ax.hist(result.null[~np.isnan(result.null)], bins=20, color="#bdbdbd")
+        ax.axvline(result.observed, color="#D55E00", linewidth=2)
+        ax.set_title(f"{name}\nobserved={result.observed:.2f}, p={result.p_value:.3f}", fontsize=9)
+        ax.set_xlabel(result.metric)
+    plt.tight_layout()
+    return axes
 
 
 def umap_threshold_colormap(

@@ -197,6 +197,22 @@ Run them in order:
 | `07-epi-cell-typing-total-populations.ipynb` | Compare total cell populations |
 | `08-findings-eda.ipynb` | Exploratory data analysis of findings |
 
+#### QC-confound checks — `notebooks/GSE161529/qc-confound/`
+
+PBS classes are thresholds on QC metrics, so a classifier trained on PBS features might predict
+ER+ status from sample-level QC differences (handling, dissociation, sequencing depth, lowered gene
+thresholds) rather than from anything specific to discarded cells. These notebooks test that
+explanation. Each one writes CSVs to `data/processed/qc_confound/` and ends with a table that says
+which outcome supports which explanation.
+
+| Notebook | Question |
+|---|---|
+| `00-qc-confound-specimen-covariates.ipynb` | Do ER+ and Normal specimens differ in depth, complexity, mito, noise burden and Pal's per-sample thresholds, and does specimen-level PBS composition track them? |
+| `01-qc-confound-negative-controls.ipynb` | Does the published PBS classifier beat retained cells, all cells, raw QC and within-specimen QC ranks under patient-grouped CV and specimen-level permutation? |
+| `02-qc-confound-covariate-adjustment.ipynb` | Does PBS composition still separate conditions after in-fold adjustment for the technical covariates? |
+| `03-qc-confound-alternative-noise-definitions.ipynb` | Does the signal survive a uniform study-wide rule and a per-specimen 3-MAD rule in place of Pal's thresholds? |
+| `04-qc-confound-depth-equalization.ipynb` | Does the signal survive thinning every specimen to a common sequencing depth? |
+
 Each notebook imports from the `signals_in_the_noise` package installed in step 3.
 To enable logging output in a notebook, add this to the first cell:
 
@@ -217,14 +233,21 @@ signals-in-the-noise/
 │   └── signals_in_the_noise/
 │       ├── config.py                   # project-wide path constants and helper functions
 │       ├── analysis/
+│       │   ├── confounders.py          # specimen-level technical covariates and condition associations
 │       │   ├── noise_phenotypes.py     # noise-cell phenotype annotation logic
 │       │   └── statistics.py          # statistical comparison helpers
 │       ├── io/
 │       │   ├── gmt.py                  # GMT gene-set file parser
 │       │   └── tenx.py                 # 10x Genomics file reconstitution and AnnData loading
+│       ├── modeling/
+│       │   ├── datasets.py             # cell tables and control arms (population x feature set)
+│       │   ├── evaluation.py           # grouped CV, per-specimen metrics, permutations, draws
+│       │   └── experiments.py          # arm suites under the published protocol
 │       ├── preprocessing/
 │       │   ├── base.py                 # Preprocessor base class and PreprocessorConfig dataclass
-│       │   └── gse161529.py            # GSE161529-specific preprocessing subclass
+│       │   ├── gse161529.py            # GSE161529-specific preprocessing subclass
+│       │   ├── qc.py                   # QC metrics, noise rules, depth thinning
+│       │   └── specimens.py            # specimen/patient identifiers and Cohort
 │       └── utils/
 │           ├── log.py                  # module-level logger factory (no handler configuration)
 │           ├── logging_config.py       # setup_logging() for entry points and notebooks
@@ -232,16 +255,24 @@ signals-in-the-noise/
 ├── tests/
 │   ├── conftest.py                     # shared pytest fixtures
 │   ├── analysis/
+│   │   ├── test_confounders.py
 │   │   ├── test_noise_phenotypes.py
 │   │   └── test_statistics.py
 │   ├── functional/
+│   │   ├── test_qc_confound_notebooks.py  # runs the qc-confound notebooks on a synthetic cohort
 │   │   └── test_tenx_functional.py    # end-to-end tests using committed fixture files
+│   ├── modeling/
+│   │   ├── test_datasets.py
+│   │   ├── test_evaluation.py
+│   │   └── test_experiments.py        # synthetic worlds: discarded-cell signal vs sample-level confound
 │   ├── io/
 │   │   ├── test_gmt.py
 │   │   └── test_tenx.py
 │   ├── preprocessing/
 │   │   ├── test_base.py
-│   │   └── test_gse161529.py
+│   │   ├── test_gse161529.py
+│   │   ├── test_qc.py
+│   │   └── test_specimens.py
 │   ├── utils/
 │   │   ├── test_log.py
 │   │   ├── test_logging_config.py
