@@ -79,6 +79,36 @@ def test_depth_matched_labels_do_not_overlap():
     assert not first.overlaps(second)
 
 
+def test_auc_zero_sits_on_its_marker():
+    summary = pd.DataFrame(
+        {
+            "version": ["original", "depth-matched", "original", "depth-matched"],
+            "arm": ["retained_qc", "retained_qc", "noise_pbs", "noise_pbs"],
+            "specimen_auc": [0.70, 0.00, 0.00, 0.17],
+            "permutation_p": [0.04, 1.00, 1.00, 0.71],
+        }
+    )
+    depths = pd.DataFrame(
+        {"condition": ["ER+ tumour", "Normal"], "depth": [4000, 2500], "included": [True, True]}
+    )
+    figure = depth_collapse_figure(summary, depths)
+    figure.canvas.draw()
+    renderer = figure.canvas.get_renderer()
+    axis = figure.axes[0]
+    for ann in axis.texts:
+        text = ann.get_text()
+        index = text.index("0")
+        prop = ann.get_fontproperties()
+        prefix = text[:index]
+        prefix_width = (
+            renderer.get_text_width_height_descent(prefix, prop, ismath=False)[0] if prefix else 0
+        )
+        zero_width = renderer.get_text_width_height_descent("0", prop, ismath=False)[0]
+        zero_x = ann.get_window_extent(renderer).x0 + prefix_width + zero_width / 2
+        marker_x = axis.transData.transform(ann.xy)[0]
+        assert abs(zero_x - marker_x) < 2
+
+
 def test_low_auc_labels_stay_inside_the_panel():
     summary = pd.DataFrame(
         {

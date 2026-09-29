@@ -51,11 +51,12 @@ def depth_collapse_figure(summary: pd.DataFrame, depths: pd.DataFrame):
     included = depths.loc[_as_bool(depths["included"])].copy()
     fig = _figure(figsize=(11.0, 4.6))
     axes = fig.subplots(1, 2, width_ratios=[1.25, 1])
-    _auc_slopes(axes[0], scores)
+    labels = _auc_slopes(axes[0], scores)
     _depth_strip(axes[1], included)
     for axis, letter in zip(axes, ("A", "B"), strict=True):
         axis.set_title(letter, loc="left", fontsize=18, fontweight="bold", pad=6)
-    fig.subplots_adjust(left=0.07, right=0.97, top=0.88, bottom=0.16, wspace=0.42)
+    fig.subplots_adjust(left=0.07, right=0.97, top=0.88, bottom=0.18, wspace=0.42)
+    _center_auc_zero(labels)
     fig._poster_layout = True
     return fig
 
@@ -137,30 +138,21 @@ def _auc_slopes(ax, scores: pd.DataFrame) -> list:
             clip_on=False,
             solid_capstyle="round",
         )
-        left_shift = (-4, 8) if arm == "retained_qc" else (-4, -8)
+        if arm == "retained_qc":
+            vertical = (0, "center")
+        else:
+            vertical = (6, "bottom")
         annotations.append(
-            ax.annotate(
-                f"{name}  {values[0]:.2f}",
-                (0, values[0]),
-                textcoords="offset points",
-                xytext=left_shift,
-                ha="right",
-                va="center",
-                color=color,
-                fontsize=13,
-            )
+            _auc_label(ax, (0, values[0]), f"{name}  {values[0]:.2f}", color, vertical)
         )
         p_value = float(rows.loc["depth-matched", "permutation_p"])
         annotations.append(
-            ax.annotate(
-                f"{values[1]:.2f}   p = {p_value:.2f}",
+            _auc_label(
+                ax,
                 (1, values[1]),
-                textcoords="offset points",
-                xytext=(12, -8),
-                ha="left",
-                va="center",
-                color=color,
-                fontsize=13,
+                f"{values[1]:.2f}   p = {p_value:.2f}",
+                color,
+                (6, "bottom"),
             )
         )
     ax.plot(
@@ -177,6 +169,45 @@ def _auc_slopes(ax, scores: pd.DataFrame) -> list:
     ax.set_ylim(-0.04, 1.06)
     _style(ax)
     return annotations
+
+
+def _auc_label(ax, xy: tuple[float, float], text: str, color: str, vertical: tuple[float, str]):
+    """Left-aligned label. A later pass centers its first 0 on the marker."""
+    dy, va = vertical
+    return ax.annotate(
+        text,
+        xy,
+        textcoords="offset points",
+        xytext=(0, dy),
+        ha="left",
+        va=va,
+        color=color,
+        fontsize=13,
+    )
+
+
+def _center_auc_zero(annotations: list) -> None:
+    """Move each label so the 0 in its AUC sits on the marker."""
+    if not annotations:
+        return
+    figure = annotations[0].axes.figure
+    figure.canvas.draw()
+    renderer = figure.canvas.get_renderer()
+    pixels_per_point = figure.dpi / 72
+    for ann in annotations:
+        text = ann.get_text()
+        index = text.index("0")
+        prop = ann.get_fontproperties()
+        prefix = text[:index]
+        prefix_width = (
+            renderer.get_text_width_height_descent(prefix, prop, ismath=False)[0] if prefix else 0
+        )
+        zero_width = renderer.get_text_width_height_descent("0", prop, ismath=False)[0]
+        box = ann.get_window_extent(renderer)
+        zero_x = box.x0 + prefix_width + zero_width / 2
+        marker_x = ann.axes.transData.transform(ann.xy)[0]
+        dx, dy = ann.xyann
+        ann.set_position((dx + (marker_x - zero_x) / pixels_per_point, dy))
 
 
 def _depth_strip(ax, included: pd.DataFrame) -> None:
