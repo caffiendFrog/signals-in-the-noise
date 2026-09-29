@@ -52,11 +52,12 @@ def depth_collapse_figure(summary: pd.DataFrame, depths: pd.DataFrame):
     included = depths.loc[_as_bool(depths["included"])].copy()
     fig = _figure(figsize=(11.0, 4.6))
     axes = fig.subplots(1, 2, width_ratios=[1.25, 1])
-    _auc_slopes(axes[0], scores)
+    annotations = _auc_slopes(axes[0], scores)
     _depth_strip(axes[1], included)
     for axis, letter in zip(axes, ("A", "B"), strict=True):
         axis.set_title(letter, loc="left", fontsize=18, fontweight="bold", pad=6)
-    fig.subplots_adjust(left=0.07, right=0.98, top=0.88, bottom=0.16, wspace=0.42)
+    fig.subplots_adjust(left=0.07, right=0.97, top=0.88, bottom=0.16, wspace=0.42)
+    _separate_annotations(annotations)
     fig._poster_layout = True
     return fig
 
@@ -113,13 +114,13 @@ def _noise_and_qc(summary: pd.DataFrame) -> pd.DataFrame:
     return chosen
 
 
-def _auc_slopes(ax, scores: pd.DataFrame) -> None:
+def _auc_slopes(ax, scores: pd.DataFrame) -> list:
     order = ["original", "depth-matched"]
     series = (
         ("retained_qc", MI_SKY, 1.8, 7, 2, "Kept cells"),
         ("noise_pbs", MI_VERMILLION, 3.0, 10, 4, "PBS"),
     )
-    right_labels: list[tuple[float, str, str]] = []
+    annotations = []
     for arm, color, width, marker, zorder, name in series:
         rows = scores.loc[scores["arm"] == arm].set_index("version")
         if not set(order).issubset(rows.index):
@@ -135,31 +136,24 @@ def _auc_slopes(ax, scores: pd.DataFrame) -> None:
             markeredgecolor="white",
             markeredgewidth=0.8,
             zorder=zorder,
+            clip_on=False,
             solid_capstyle="round",
         )
-        ax.annotate(
-            f"{name}  {values[0]:.2f}",
-            (0, values[0]),
-            textcoords="offset points",
-            xytext=(-12, _end_shift(values[0])),
-            ha="right",
-            va=_end_align(values[0]),
-            color=color,
-            fontsize=13,
+        annotations.append(
+            ax.annotate(
+                f"{name}  {values[0]:.2f}",
+                (0, values[0]),
+                textcoords="offset points",
+                xytext=(-12, _end_shift(values[0])),
+                ha="right",
+                va=_end_align(values[0]),
+                color=color,
+                fontsize=13,
+            )
         )
         p_value = float(rows.loc["depth-matched", "permutation_p"])
-        right_labels.append((values[1], color, f"{values[1]:.2f}\np = {p_value:.2f}"))
-    for y, color, text in _stagger(right_labels):
-        ax.annotate(
-            text,
-            (1, y),
-            textcoords="offset points",
-            xytext=(12, _end_shift(y)),
-            ha="left",
-            va=_end_align(y),
-            color=color,
-            fontsize=13,
-            linespacing=1.15,
+        annotations.append(
+            _right_label(ax, values[1], f"{values[1]:.2f}   p = {p_value:.2f}", color)
         )
     ax.plot(
         [0, 1],
@@ -169,11 +163,12 @@ def _auc_slopes(ax, scores: pd.DataFrame) -> None:
         linewidth=1.0,
         zorder=1,
     )
-    ax.set_xlim(-0.72, 1.58)
+    ax.set_xlim(-0.72, 1.62)
     ax.set_xticks([0, 1], ["Original", "Depth-matched"])
     ax.set_ylabel("Specimen AUC")
-    ax.set_ylim(-0.02, 1.06)
+    ax.set_ylim(-0.04, 1.06)
     _style(ax)
+    return annotations
 
 
 def _end_align(y: float) -> str:
@@ -192,19 +187,40 @@ def _end_shift(y: float) -> float:
     return 0
 
 
-def _stagger(labels: list[tuple[float, str, str]]) -> list[tuple[float, str, str]]:
-    """Shift right-hand labels that would sit on top of each other."""
-    ordered = sorted(labels, key=lambda item: item[0])
-    placed: list[float] = []
-    staggered = []
-    for y, color, text in ordered:
-        target = y
-        for earlier in placed:
-            if abs(target - earlier) < 0.14:
-                target = earlier + 0.14
-        placed.append(target)
-        staggered.append((target, color, text))
-    return staggered
+def _right_label(ax, y: float, text: str, color: str):
+    """One line to the right of a depth-matched point, above the axis."""
+    return ax.annotate(
+        text,
+        (1, y),
+        textcoords="offset points",
+        xytext=(12, 10),
+        ha="left",
+        va="bottom",
+        color=color,
+        fontsize=13,
+    )
+
+
+def _separate_annotations(annotations: list) -> None:
+    """Lift a right-hand label when it would cover the one below it."""
+    right = [item for item in annotations if item.xy[0] == 1]
+    if len(right) < 2:
+        return
+    figure = right[0].axes.figure
+    ordered = sorted(right, key=lambda item: item.xy[1])
+    for _ in range(6):
+        figure.canvas.draw()
+        boxes = [item.get_window_extent().expanded(1, 3) for item in ordered]
+        moved = False
+        for _below, above, lower, upper in zip(ordered, ordered[1:], boxes, boxes[1:]):
+            if not lower.overlaps(upper):
+                continue
+            dx, dy = above.xyann
+            above.set_position((dx, dy + (lower.y1 - upper.y0) + 8))
+            moved = True
+            break
+        if not moved:
+            return
 
 
 def _depth_strip(ax, included: pd.DataFrame) -> None:

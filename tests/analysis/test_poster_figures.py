@@ -52,6 +52,30 @@ def test_depth_figure_draws_the_pbs_drop_and_requires_both_versions(tmp_path):
         raise AssertionError("A summary without the depth-matched PBS row should fail.")
 
 
+def test_depth_matched_labels_do_not_overlap():
+    summary = pd.DataFrame(
+        {
+            "version": ["original", "depth-matched", "original", "depth-matched"],
+            "arm": ["retained_qc", "retained_qc", "noise_pbs", "noise_pbs"],
+            "specimen_auc": [0.70, 0.00, 0.00, 0.17],
+            "permutation_p": [0.04, 1.00, 1.00, 0.71],
+        }
+    )
+    depths = pd.DataFrame(
+        {
+            "condition": ["ER+ tumour", "Normal"],
+            "depth": [4000, 2500],
+            "included": [True, True],
+        }
+    )
+    figure = depth_collapse_figure(summary, depths)
+    figure.canvas.draw()
+    labels = [text for text in figure.axes[0].texts if "p =" in text.get_text()]
+    assert len(labels) == 2
+    first, second = (text.get_window_extent().expanded(2, 2) for text in labels)
+    assert not first.overlaps(second)
+
+
 def test_low_auc_labels_stay_inside_the_panel():
     summary = pd.DataFrame(
         {
