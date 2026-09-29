@@ -45,19 +45,17 @@ def depth_collapse_figure(summary: pd.DataFrame, depths: pd.DataFrame):
     """The depth figure, before it is written to disk.
 
     Panel letters and axis labels only. The poster caption carries the sentence.
-    The PBS slope is heavier, and each end is labeled above the marker so a
-    value near zero stays off the axis.
+    The PBS and kept-cell lines use the same weight. Left labels are right-aligned.
     """
     scores = _noise_and_qc(summary)
     included = depths.loc[_as_bool(depths["included"])].copy()
     fig = _figure(figsize=(11.0, 4.6))
     axes = fig.subplots(1, 2, width_ratios=[1.25, 1])
-    annotations = _auc_slopes(axes[0], scores)
+    _auc_slopes(axes[0], scores)
     _depth_strip(axes[1], included)
     for axis, letter in zip(axes, ("A", "B"), strict=True):
         axis.set_title(letter, loc="left", fontsize=18, fontweight="bold", pad=6)
     fig.subplots_adjust(left=0.07, right=0.97, top=0.88, bottom=0.16, wspace=0.42)
-    _separate_annotations(annotations)
     fig._poster_layout = True
     return fig
 
@@ -118,7 +116,7 @@ def _auc_slopes(ax, scores: pd.DataFrame) -> list:
     order = ["original", "depth-matched"]
     series = (
         ("retained_qc", MI_SKY, 1.8, 7, 2, "Kept cells"),
-        ("noise_pbs", MI_VERMILLION, 3.0, 10, 4, "PBS"),
+        ("noise_pbs", MI_VERMILLION, 1.8, 7, 3, "PBS"),
     )
     annotations = []
     for arm, color, width, marker, zorder, name in series:
@@ -134,26 +132,36 @@ def _auc_slopes(ax, scores: pd.DataFrame) -> list:
             marker="o",
             markersize=marker,
             markeredgecolor="white",
-            markeredgewidth=0.8,
+            markeredgewidth=0.6,
             zorder=zorder,
             clip_on=False,
             solid_capstyle="round",
         )
+        left_shift = (-4, 8) if arm == "retained_qc" else (-4, -8)
         annotations.append(
             ax.annotate(
                 f"{name}  {values[0]:.2f}",
                 (0, values[0]),
                 textcoords="offset points",
-                xytext=(-12, _end_shift(values[0])),
+                xytext=left_shift,
                 ha="right",
-                va=_end_align(values[0]),
+                va="center",
                 color=color,
                 fontsize=13,
             )
         )
         p_value = float(rows.loc["depth-matched", "permutation_p"])
         annotations.append(
-            _right_label(ax, values[1], f"{values[1]:.2f}   p = {p_value:.2f}", color)
+            ax.annotate(
+                f"{values[1]:.2f}   p = {p_value:.2f}",
+                (1, values[1]),
+                textcoords="offset points",
+                xytext=(12, -8),
+                ha="left",
+                va="center",
+                color=color,
+                fontsize=13,
+            )
         )
     ax.plot(
         [0, 1],
@@ -169,58 +177,6 @@ def _auc_slopes(ax, scores: pd.DataFrame) -> list:
     ax.set_ylim(-0.04, 1.06)
     _style(ax)
     return annotations
-
-
-def _end_align(y: float) -> str:
-    if y < 0.12:
-        return "bottom"
-    if y > 0.9:
-        return "top"
-    return "center"
-
-
-def _end_shift(y: float) -> float:
-    if y < 0.12:
-        return 6
-    if y > 0.9:
-        return -6
-    return 0
-
-
-def _right_label(ax, y: float, text: str, color: str):
-    """One line to the right of a depth-matched point, above the axis."""
-    return ax.annotate(
-        text,
-        (1, y),
-        textcoords="offset points",
-        xytext=(12, 10),
-        ha="left",
-        va="bottom",
-        color=color,
-        fontsize=13,
-    )
-
-
-def _separate_annotations(annotations: list) -> None:
-    """Lift a right-hand label when it would cover the one below it."""
-    right = [item for item in annotations if item.xy[0] == 1]
-    if len(right) < 2:
-        return
-    figure = right[0].axes.figure
-    ordered = sorted(right, key=lambda item: item.xy[1])
-    for _ in range(6):
-        figure.canvas.draw()
-        boxes = [item.get_window_extent().expanded(1, 3) for item in ordered]
-        moved = False
-        for _below, above, lower, upper in zip(ordered, ordered[1:], boxes, boxes[1:]):
-            if not lower.overlaps(upper):
-                continue
-            dx, dy = above.xyann
-            above.set_position((dx, dy + (lower.y1 - upper.y0) + 8))
-            moved = True
-            break
-        if not moved:
-            return
 
 
 def _depth_strip(ax, included: pd.DataFrame) -> None:

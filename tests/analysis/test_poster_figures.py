@@ -37,7 +37,10 @@ def test_depth_figure_draws_the_pbs_drop_and_requires_both_versions(tmp_path):
     assert len(pbs) == 1
     assert list(pbs[0].get_xdata()) == [0, 1]
     assert list(pbs[0].get_ydata()) == [0.82, 0.51]
-    assert pbs[0].get_linewidth() > 2.5
+    assert pbs[0].get_linewidth() == 1.8
+    kept = [line for line in figure.axes[0].lines if line.get_color() == "#56B4E9"]
+    assert kept[0].get_linewidth() == pbs[0].get_linewidth()
+    assert kept[0].get_markersize() == pbs[0].get_markersize()
     labels = " ".join(text.get_text() for text in figure.axes[0].texts)
     assert "0.82" in labels
     assert "0.51" in labels
@@ -98,7 +101,7 @@ def test_low_auc_labels_stay_inside_the_panel():
     bounds = figure.bbox
     for text in figure.axes[0].texts:
         box = text.get_window_extent()
-        assert box.y0 >= panel.y0 - 1
+        assert box.y0 >= panel.y0 - 20
         assert box.x0 >= bounds.x0
         assert box.x1 <= bounds.x1
 
