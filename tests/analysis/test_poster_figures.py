@@ -38,10 +38,10 @@ def test_depth_figure_draws_the_pbs_drop_and_requires_both_versions(tmp_path):
     assert list(pbs[0].get_xdata()) == [0, 1]
     assert list(pbs[0].get_ydata()) == [0.82, 0.51]
     assert pbs[0].get_linewidth() > 2.5
-    title = figure._suptitle.get_text()
-    assert "0.82" in title
-    assert "0.51" in title
-    assert figure.axes[0].get_ylim()[0] == 0.0
+    labels = " ".join(text.get_text() for text in figure.axes[0].texts)
+    assert "0.82" in labels
+    assert "0.51" in labels
+    assert figure._suptitle is None
 
     summary.loc[summary["version"] == "depth-matched", "version"] = "thinned"
     try:
@@ -50,6 +50,33 @@ def test_depth_figure_draws_the_pbs_drop_and_requires_both_versions(tmp_path):
         assert "depth-matched" in str(error)
     else:
         raise AssertionError("A summary without the depth-matched PBS row should fail.")
+
+
+def test_low_auc_labels_stay_inside_the_panel():
+    summary = pd.DataFrame(
+        {
+            "version": ["original", "depth-matched"],
+            "arm": ["noise_pbs", "noise_pbs"],
+            "specimen_auc": [0.00, 0.17],
+            "permutation_p": [1.00, 0.71],
+        }
+    )
+    depths = pd.DataFrame(
+        {
+            "condition": ["ER+ tumour", "Normal"],
+            "depth": [6200, 2400],
+            "included": [True, True],
+        }
+    )
+    figure = depth_collapse_figure(summary, depths)
+    figure.canvas.draw()
+    panel = figure.axes[0].get_window_extent()
+    bounds = figure.bbox
+    for text in figure.axes[0].texts:
+        box = text.get_window_extent()
+        assert box.y0 >= panel.y0 - 1
+        assert box.x0 >= bounds.x0
+        assert box.x1 <= bounds.x1
 
 
 def test_lp_figure_spans_the_cap_and_marks_alpha(tmp_path):

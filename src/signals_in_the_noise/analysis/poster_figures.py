@@ -44,25 +44,20 @@ def plot_depth_collapse(summary: pd.DataFrame, depths: pd.DataFrame, path: Path)
 def depth_collapse_figure(summary: pd.DataFrame, depths: pd.DataFrame):
     """The depth figure, before it is written to disk.
 
-    Re-plot: the PBS slope is the claim. Draw it last, heavier than the
-    kept-cell line, and print the specimen AUC at each end. Those two numbers
-    are what the title is asserting. The cohort is ER+ tumour versus Normal.
+    Panel letters and axis labels only. The poster caption carries the sentence.
+    The PBS slope is heavier, and each end is labeled above the marker so a
+    value near zero stays off the axis.
     """
     scores = _noise_and_qc(summary)
     included = depths.loc[_as_bool(depths["included"])].copy()
-    before, after = _pbs_auc(scores)
-    fig = _figure(figsize=(10.2, 4.6))
-    axes = fig.subplots(1, 2)
+    fig = _figure(figsize=(11.0, 4.6))
+    axes = fig.subplots(1, 2, width_ratios=[1.25, 1])
     _auc_slopes(axes[0], scores)
     _depth_strip(axes[1], included)
-    fig.suptitle(
-        "Equalizing depth removes the ER+ signal in discarded cells\n"
-        f"PBS specimen AUC {before:.2f} before matching, {after:.2f} after",
-        color=MI_FONT_COLOR,
-        fontsize=15,
-        x=0.02,
-        ha="left",
-    )
+    for axis, letter in zip(axes, ("A", "B"), strict=True):
+        axis.set_title(letter, loc="left", fontsize=18, fontweight="bold", pad=6)
+    fig.subplots_adjust(left=0.07, right=0.98, top=0.88, bottom=0.16, wspace=0.42)
+    fig._poster_layout = True
     return fig
 
 
@@ -118,23 +113,14 @@ def _noise_and_qc(summary: pd.DataFrame) -> pd.DataFrame:
     return chosen
 
 
-def _pbs_auc(scores: pd.DataFrame) -> tuple[float, float]:
-    rows = scores.loc[scores["arm"] == "noise_pbs"].set_index("version")
-    return (
-        float(rows.loc["original", "specimen_auc"]),
-        float(rows.loc["depth-matched", "specimen_auc"]),
-    )
-
-
 def _auc_slopes(ax, scores: pd.DataFrame) -> None:
     order = ["original", "depth-matched"]
-    # Kept cells first, then PBS on top. PBS carries the AUC labels.
     series = (
-        ("retained_qc", MI_SKY, 1.6, 6, 2),
-        ("noise_pbs", MI_VERMILLION, 3.2, 9, 4),
+        ("retained_qc", MI_SKY, 1.8, 7, 2, "Kept cells"),
+        ("noise_pbs", MI_VERMILLION, 3.0, 10, 4, "PBS"),
     )
-    labels = {"noise_pbs": "Discarded cells, PBS", "retained_qc": "Kept cells, raw QC"}
-    for arm, color, width, marker, zorder in series:
+    right_labels: list[tuple[float, str, str]] = []
+    for arm, color, width, marker, zorder, name in series:
         rows = scores.loc[scores["arm"] == arm].set_index("version")
         if not set(order).issubset(rows.index):
             continue
@@ -146,52 +132,79 @@ def _auc_slopes(ax, scores: pd.DataFrame) -> None:
             linewidth=width,
             marker="o",
             markersize=marker,
+            markeredgecolor="white",
+            markeredgewidth=0.8,
             zorder=zorder,
+            solid_capstyle="round",
         )
-        if arm != "noise_pbs":
-            continue
-        for x, version, value, align, shift in (
-            (0, "original", values[0], "left", 8),
-            (1, "depth-matched", values[1], "right", -8),
-        ):
-            ax.annotate(
-                f"AUC {value:.2f}",
-                (x, value),
-                textcoords="offset points",
-                xytext=(shift, 8),
-                ha=align,
-                color=color,
-                fontsize=12,
-            )
-            ax.annotate(
-                f"p = {float(rows.loc[version, 'permutation_p']):.2f}",
-                (x, value),
-                textcoords="offset points",
-                xytext=(shift, -14),
-                ha=align,
-                color=color,
-                fontsize=10,
-            )
-    ax.axhline(0.5, color=MI_FONT_COLOR, linestyle="--", linewidth=0.9, alpha=0.7, zorder=1)
-    ax.set_xticks([0, 1], ["Original depth", "Depth-matched"])
-    ax.set_ylabel("Specimen AUC, ER+ vs Normal")
-    ax.set_ylim(0.0, 1.05)
-    ax.legend(
-        handles=[
-            Line2D(
-                [0],
-                [0],
-                color=MI_VERMILLION,
-                marker="o",
-                linewidth=3.2,
-                label=labels["noise_pbs"],
-            ),
-            Line2D([0], [0], color=MI_SKY, marker="o", linewidth=1.6, label=labels["retained_qc"]),
-        ],
-        frameon=False,
-        loc="lower left",
+        ax.annotate(
+            f"{name}  {values[0]:.2f}",
+            (0, values[0]),
+            textcoords="offset points",
+            xytext=(-12, _end_shift(values[0])),
+            ha="right",
+            va=_end_align(values[0]),
+            color=color,
+            fontsize=13,
+        )
+        p_value = float(rows.loc["depth-matched", "permutation_p"])
+        right_labels.append((values[1], color, f"{values[1]:.2f}\np = {p_value:.2f}"))
+    for y, color, text in _stagger(right_labels):
+        ax.annotate(
+            text,
+            (1, y),
+            textcoords="offset points",
+            xytext=(12, _end_shift(y)),
+            ha="left",
+            va=_end_align(y),
+            color=color,
+            fontsize=13,
+            linespacing=1.15,
+        )
+    ax.plot(
+        [0, 1],
+        [0.5, 0.5],
+        color=MI_FONT_COLOR,
+        linestyle=(0, (4, 3)),
+        linewidth=1.0,
+        zorder=1,
     )
+    ax.set_xlim(-0.72, 1.58)
+    ax.set_xticks([0, 1], ["Original", "Depth-matched"])
+    ax.set_ylabel("Specimen AUC")
+    ax.set_ylim(-0.02, 1.06)
     _style(ax)
+
+
+def _end_align(y: float) -> str:
+    if y < 0.12:
+        return "bottom"
+    if y > 0.9:
+        return "top"
+    return "center"
+
+
+def _end_shift(y: float) -> float:
+    if y < 0.12:
+        return 6
+    if y > 0.9:
+        return -6
+    return 0
+
+
+def _stagger(labels: list[tuple[float, str, str]]) -> list[tuple[float, str, str]]:
+    """Shift right-hand labels that would sit on top of each other."""
+    ordered = sorted(labels, key=lambda item: item[0])
+    placed: list[float] = []
+    staggered = []
+    for y, color, text in ordered:
+        target = y
+        for earlier in placed:
+            if abs(target - earlier) < 0.14:
+                target = earlier + 0.14
+        placed.append(target)
+        staggered.append((target, color, text))
+    return staggered
 
 
 def _depth_strip(ax, included: pd.DataFrame) -> None:
@@ -201,18 +214,31 @@ def _depth_strip(ax, included: pd.DataFrame) -> None:
         values = included.loc[included["condition"] == condition, "depth"].to_numpy(dtype=float)
         if len(values) == 0:
             continue
-        jitter = rng.uniform(-0.12, 0.12, size=len(values))
+        jitter = rng.uniform(-0.08, 0.08, size=len(values))
+        median = float(np.median(values))
+        ax.plot(
+            [index - 0.22, index + 0.22],
+            [median, median],
+            color=MI_FONT_COLOR,
+            linewidth=1.6,
+            solid_capstyle="round",
+            zorder=2,
+        )
         ax.scatter(
             np.full(len(values), index) + jitter,
             values,
-            s=36,
+            s=70,
             color=color,
             edgecolors=MI_FONT_COLOR,
-            linewidths=0.4,
+            linewidths=0.6,
             zorder=3,
         )
+    ax.set_xlim(-0.55, 1.55)
     ax.set_xticks([0, 1], ["ER+", "Normal"])
-    ax.set_ylabel("Median UMIs per retained cell")
+    for tick, color in zip(ax.get_xticklabels(), (MI_GREEN, MI_BLUE), strict=True):
+        tick.set_color(color)
+    ax.set_ylabel("Median UMIs")
+    ax.yaxis.set_major_formatter(lambda value, _pos: f"{value:,.0f}")
     _style(ax)
 
 
@@ -354,15 +380,20 @@ def _style(ax) -> None:
     ax.spines["right"].set_visible(False)
     ax.spines["bottom"].set_color(MI_FONT_COLOR)
     ax.spines["left"].set_color(MI_FONT_COLOR)
-    ax.tick_params(colors=MI_FONT_COLOR, labelsize=12)
+    ax.spines["bottom"].set_linewidth(1.1)
+    ax.spines["left"].set_linewidth(1.1)
+    ax.tick_params(colors=MI_FONT_COLOR, labelsize=13, width=1.1, length=5)
     ax.xaxis.label.set_color(MI_FONT_COLOR)
     ax.yaxis.label.set_color(MI_FONT_COLOR)
+    ax.xaxis.label.set_size(15)
+    ax.yaxis.label.set_size(15)
     ax.title.set_color(MI_FONT_COLOR)
 
 
 def _save(fig, path: Path) -> None:
     fig.patch.set_facecolor("none")
-    fig.tight_layout(rect=(0, 0, 1, 0.92))
+    if not getattr(fig, "_poster_layout", False):
+        fig.tight_layout(rect=(0, 0, 1, 0.92))
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(path, dpi=300, bbox_inches="tight", transparent=True)
